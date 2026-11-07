@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Masuk{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>Masuk</h1>
+  <p class="lead">Selamat datang kembali. Masuk untuk melanjutkan.</p>
+  <p id="notice" class="notice" hidden></p>
+  <form id="login-form" novalidate>
+    <label for="identifier">Username atau email</label>
+    <input id="identifier" name="identifier" type="text" required minlength="3" maxlength="50" autocomplete="username">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" required maxlength="128" autocomplete="current-password">
+    <p id="form-error" class="error" role="alert" hidden></p>
+    <button class="btn primary" type="submit">Masuk</button>
+  </form>
+  <p class="muted switch">Belum punya akun? <a href="/register">Daftar</a></p>
+</section>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ url_for('static', path='js/pages/login.js') }}"></script>{% endblock %}

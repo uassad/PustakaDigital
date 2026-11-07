@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Katalog & Pencarian Buku{% endblock %}
+{% block body_class %}home-page{% endblock %}
+{% block shell_class %}home-shell{% endblock %}
+
+{% block content %}
+<div class="home-container">
+  <!-- Navigasi / Status Pengguna di bagian atas -->
+  <header class="home-toolbar">
+    <div class="toolbar-brand">
+      <h1 class="page-title">Katalog Koleksi Buku</h1>
+      <p class="lead">Cari dan jelajahi buku digital PDF berkualitas secara aman.</p>
+    </div>
+    <div id="user-nav" class="user-nav" aria-label="Navigasi Pengguna">
+      <!-- Dinamis diisi oleh home.js (Guest: Masuk/Daftar | Logged-in: Profil/Keluar) -->
+    </div>
+  </header>
+
+  <!-- Pemberitahuan Khusus Mode Tamu -->
+  <div id="guest-banner" class="guest-banner notice" hidden>
+    <div class="guest-banner-text">
+      <strong>Mode Tamu Aktif:</strong> Anda dapat menjelajah dan mencari buku PDF secara bebas.
+      Namun, Anda <em>belum dapat menambahkan buku ke daftar favorit</em> hingga Anda
+      <a href="/login" class="banner-link">Masuk</a> atau
+      <a href="/register" class="banner-link">Mendaftar Akun Baru</a>.
+    </div>
+  </div>
+
+  <!-- Panel Pencarian dan Filter Kategori -->
+  <section class="search-panel card" aria-label="Pencarian Buku">
+    <form id="search-form" class="search-form" onsubmit="return false;">
+      <div class="search-input-group">
+        <span class="search-icon" aria-hidden="true">🔍</span>
+        <input
+          id="search-input"
+          type="search"
+          placeholder="Cari berdasarkan judul buku, nama penulis, penerbit, atau ISBN..."
+          autocomplete="off"
+          aria-label="Cari buku"
+          maxlength="100"
+        >
+        <button id="search-clear-btn" class="btn clear-btn" type="button" title="Bersihkan pencarian" hidden>✕</button>
+      </div>
+    </form>
+
+    <div class="filter-bar">
+      <div class="filter-section">
+        <span class="filter-label">Kategori:</span>
+        <div id="category-chips" class="chip-group" role="group" aria-label="Filter Kategori">
+          <button class="chip active" data-category="" type="button">Semua Kategori</button>
+        </div>
+      </div>
+      <div id="fav-filter-wrapper" class="fav-filter-wrapper" hidden>
+        <button id="filter-favorites-btn" class="chip chip-gold" type="button">★ Koleksi Favorit Saya</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Status / Info Hasil Pencarian -->
+  <div class="results-header">
+    <div id="results-count" class="muted" role="status">Memuat katalog buku...</div>
+  </div>
+
+  <!-- Grid Tempat Kartu Buku Ditampilkan -->
+  <section id="book-grid" class="book-grid" aria-live="polite">
+    <!-- Diisi secara aman oleh home.js -->
+  </section>
+
+  <!-- Navigasi Halaman (Paginasi) -->
+  <nav id="pagination" class="pagination" aria-label="Paginasi" hidden>
+    <button id="prev-page-btn" class="btn" type="button" disabled>&laquo; Sebelumnya</button>
+    <span id="page-info" class="page-info muted">Halaman 1 dari 1</span>
+    <button id="next-page-btn" class="btn" type="button" disabled>Berikutnya &raquo;</button>
+  </nav>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ url_for('static', path='js/pages/home.js') }}"></script>
+{% endblock %}

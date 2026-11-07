@@ -1,0 +1,14 @@
+__pycache__/
+.pytest_cache/
+.venv/
+.apps/
+*.exe
+*.pgerd
+# .env
+# .secrets
+# .vscode
+# .ai
+# .docker
+# .gitignore
+# configuration
+# .yml
