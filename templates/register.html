@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Daftar{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>Buat akun</h1>
+  <p class="lead">Daftar gratis untuk mulai membaca.</p>
+  <form id="register-form" novalidate>
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" required pattern="[A-Za-z0-9_]{3,30}" maxlength="30" autocomplete="username" aria-describedby="hint-username">
+    <small id="hint-username" class="muted">3–30 karakter: huruf, angka, underscore.</small>
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" required maxlength="50" autocomplete="email">
+    <label for="nomor_telepon">Nomor telepon (opsional)</label>
+    <input id="nomor_telepon" name="nomor_telepon" type="tel" pattern="\+?[0-9]{8,14}" maxlength="15" autocomplete="tel">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password" aria-describedby="hint-password">
+    <small id="hint-password" class="muted">Minimal 12 karakter, gabungkan huruf besar/kecil, angka, simbol.</small>
+    <p id="form-error" class="error" role="alert" hidden></p>
+    <button class="btn primary" type="submit">Daftar</button>
+  </form>
+  <p class="muted switch">Sudah punya akun? <a href="/login">Masuk</a></p>
+</section>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ url_for('static', path='js/pages/register.js') }}"></script>{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Beranda{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>Selamat datang</h1>
+  <p class="lead">Anda masuk sebagai <strong id="who"></strong>.</p>
+  <button id="logout" class="btn primary" type="button">Keluar</button>
+</section>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ url_for('static', path='js/pages/home.js') }}"></script>{% endblock %}
