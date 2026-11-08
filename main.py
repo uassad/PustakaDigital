@@ -41,7 +41,11 @@ app = FastAPI(
 )
 
 # --- Middleware. Urutan: yang ditambahkan TERAKHIR berjalan PALING LUAR. -----------------------
-app.add_middleware(RequestSizeLimitMiddleware, max_json_bytes=settings.max_json_body_bytes)
+app.add_middleware(
+    RequestSizeLimitMiddleware,
+    max_json_bytes=settings.max_json_body_bytes,
+    max_upload_bytes=settings.max_upload_request_bytes,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,            # daftar eksplisit, TIDAK pernah "*"

@@ -210,15 +210,36 @@ function renderBookCard(book) {
     ? el("p", { class: "book-synopsis", text: book.sinopsis })
     : null;
 
+  // Gambar Sampul Buku (Cover dari books/cover)
+  let coverEl;
+  if (book.has_cover || book.book_cover) {
+    coverEl = el("div", { class: "book-cover-wrapper" },
+      el("img", {
+        class: "book-cover-img",
+        src: `/api/books/${encodeURIComponent(book.isbn)}/cover`,
+        alt: `Sampul ${book.judul_buku}`,
+        loading: "lazy",
+      })
+    );
+  } else {
+    coverEl = el("div", { class: "book-cover-wrapper book-cover-placeholder" },
+      el("span", { class: "placeholder-icon", text: "📖" }),
+      el("span", { class: "placeholder-title", text: book.judul_buku })
+    );
+  }
+
   return el("article", { class: "book-card card", dataset: { isbn: book.isbn } },
-    el("div", { class: "card-top" },
-      catBadge,
-      favBtn
-    ),
-    el("h2", { class: "book-title", text: book.judul_buku }),
-    metaList,
-    synopsisEl,
-    el("div", { class: "card-actions" }, pdfAction)
+    coverEl,
+    el("div", { class: "card-body" },
+      el("div", { class: "card-top" },
+        catBadge,
+        favBtn
+      ),
+      el("h2", { class: "book-title", text: book.judul_buku }),
+      metaList,
+      synopsisEl,
+      el("div", { class: "card-actions" }, pdfAction)
+    )
   );
 }
 
@@ -245,6 +266,8 @@ async function loadBooks() {
           tahun_terbit: f.tahun_terbit,
           jumlah_halaman: f.jumlah_halaman,
           sinopsis: null,
+          book_cover: f.book_cover,
+          has_cover: f.has_cover,
           is_favorite: true,
           has_pdf: f.has_pdf,
         })),

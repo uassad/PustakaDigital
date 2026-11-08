@@ -223,3 +223,48 @@ def test_book_search_query_dos_prevention():
     # Mass assignment / parameter tak dikenal ditolak (extra='forbid')
     with pytest.raises(ValidationError):
         BookSearchQuery(unknown_field="injeksi")
+
+
+def test_secure_filename_generation_and_anti_csrf(secure_env, tmp_path):
+    """Pengujian pembuatan nama berkas acak ber-entropi tinggi (anti-CSRF) dan pencegahan traversal."""
+    from fastapi import HTTPException
+    from app.services import book_service
+    from configuration.settings import settings
+
+    # 1. Verifikasi keunikan dan format nama berkas acak
+    name1 = book_service.generate_secure_filename(".pdf")
+    name2 = book_service.generate_secure_filename(".pdf")
+    assert name1.endswith(".pdf")
+    assert name2.endswith(".pdf")
+    assert name1 != name2  # Unik & unguessable (mematahkan tebakan CSRF)
+    assert len(name1) > 40  # Memuat UUID + 32-char hex token
+
+    # 2. Pengujian penyimpanan cover dengan ekstensi yang diizinkan & ditolak
+    settings.books_cover_path = str(tmp_path / "books" / "cover")
+    settings.books_body_path = str(tmp_path / "books" / "body")
+
+    cover_rel = book_service.save_book_cover(b"fake-image-bytes", "my_book.png")
+    assert cover_rel.startswith("books/cover/")
+    assert cover_rel.endswith(".png")
+
+    # Tolak format tidak diizinkan untuk cover (mis. .exe, .php, .pdf)
+    for bad_ext in ("exploit.exe", "script.php", "doc.pdf"):
+        with pytest.raises(HTTPException) as exc:
+            book_service.save_book_cover(b"test", bad_ext)
+        assert exc.value.status_code == 400
+
+    # 3. Pengujian penyimpanan body (wajib PDF)
+    body_rel = book_service.save_book_body(b"%PDF-1.4...", "clean_code.pdf")
+    assert body_rel.startswith("books/body/")
+    assert body_rel.endswith(".pdf")
+
+    # Tolak berkas non-PDF untuk body
+    with pytest.raises(HTTPException) as exc:
+        book_service.save_book_body(b"test", "code.docx")
+    assert exc.value.status_code == 400
+
+    # 4. Anti-Path Traversal pada resolve path
+    with pytest.raises(HTTPException) as exc:
+        book_service.resolve_secure_file_path("../../etc/passwd", settings.books_body_dir)
+    assert exc.value.status_code in (400, 403)
+

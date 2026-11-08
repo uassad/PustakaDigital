@@ -1,14 +1,17 @@
-"""Logika bisnis katalog buku, pencarian aman, dan manajemen favorit.
+"""Logika bisnis katalog buku, pencarian aman, dan manajemen berkas fisik (cover & body).
 
 KEAMANAN:
+- Anti-CSRF & Anti-Predictable Resource: Berkas yang disimpan (cover & body) selalu diberi nama
+  acak ber-entropi tinggi (UUIDv4 + token URL-safe acak) sehingga tidak dapat diprediksi oleh pihak ketiga.
+- Anti-Path Traversal (CWE-22): Verifikasi path memastikan berkas selalu berada di dalam
+  direktori terisolasi ('books/cover' dan 'books/body').
 - Anti-SQLi: Semua query menggunakan SQLAlchemy Core / ORM berparameter (tanpa string concatenation).
 - Anti-Wildcard DoS: Karakter khusus LIKE (%, _, \\) di-escape sebelum dimasukkan ke pencarian.
-- Anti-Path Traversal: Pemeriksaan ISBN ketat (hanya digit EAN-13) dan pemastian path berada
-  di dalam direktori penyimpanan yang diizinkan (settings.books_storage_dir).
-- Anti-BOLA / IDOR: Penambahan / penghapusan favorit selalu mengikatkan ID pengguna dari session/token yang valid.
+- Anti-BOLA / IDOR: Penambahan / penghapusan favorit selalu mengikatkan ID pengguna dari token JWT valid.
 """
 import math
 import re
+import secrets
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -31,35 +34,140 @@ from app.schemas.book import (
 )
 from configuration.settings import settings
 
+ALLOWED_COVER_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+ALLOWED_BODY_EXTENSIONS = {".pdf"}
+
 
 def escape_like(text: str) -> str:
     """Escape wildcard karakter SQL LIKE/ILIKE untuk mencegah manipulasi query."""
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def check_pdf_exists(isbn: str) -> bool:
-    """Periksa apakah berkas PDF untuk ISBN ini ada di penyimpanan server secara aman."""
-    try:
-        clean_isbn = clean_and_validate_isbn13(isbn)
-    except ValueError:
-        return False
-    storage_dir = settings.books_storage_dir
-    target_file = (storage_dir / f"{clean_isbn}.pdf").resolve()
-    if not target_file.is_relative_to(storage_dir):
-        return False
-    return target_file.is_file()
+def generate_secure_filename(extension: str) -> str:
+    """Membuat nama berkas acak ber-entropi tinggi (UUIDv4 + 32-karakter token URL-safe).
+    
+    KEAMANAN (Anti-CSRF & Anti-IDOR/BOLA):
+    - Mengubah nama file menjadi acak, unik, dan unguessable.
+    - Penyerang tidak dapat menebak nama berkas secara cross-site (CSRF)
+      maupun melakukan penimpaan berkas (file overwrite) atau enumeration.
+    """
+    ext = extension.lower().strip()
+    if not ext.startswith("."):
+        ext = f".{ext}"
+    random_token = secrets.token_hex(16)
+    unique_id = uuid.uuid4().hex
+    return f"{unique_id}_{random_token}{ext}"
 
 
-def get_secure_pdf_path(isbn: str) -> Optional[Path]:
-    """Mengembalikan path berkas PDF yang aman setelah memvalidasi ISBN dan mencegah Path Traversal."""
-    clean_isbn = clean_and_validate_isbn13(isbn)
-    storage_dir = settings.books_storage_dir
-    target_file = (storage_dir / f"{clean_isbn}.pdf").resolve()
-    if not target_file.is_relative_to(storage_dir):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Akses berkas tidak diizinkan.")
-    if not target_file.is_file():
+def save_book_cover(file_bytes: bytes, original_filename: str) -> str:
+    """Menyimpan sampul buku ke books/cover dengan nama acak aman dari CSRF."""
+    if len(file_bytes) > settings.max_cover_upload_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Ukuran berkas gambar sampul melebihi batas {settings.max_cover_upload_mb} MB.",
+        )
+    ext = Path(original_filename).suffix.lower()
+    if ext not in ALLOWED_COVER_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Format berkas sampul tidak valid. Ekstensi yang diizinkan: {', '.join(sorted(ALLOWED_COVER_EXTENSIONS))}",
+        )
+    secure_filename = generate_secure_filename(ext)
+    target_dir = settings.books_cover_dir
+    target_file = (target_dir / secure_filename).resolve()
+    if not target_file.is_relative_to(target_dir):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Path berbahaya terdeteksi.")
+    target_file.write_bytes(file_bytes)
+    return f"books/cover/{secure_filename}"
+
+
+def save_book_body(file_bytes: bytes, original_filename: str) -> str:
+    """Menyimpan isi buku (PDF) ke books/body dengan nama acak aman dari CSRF."""
+    if len(file_bytes) > settings.max_pdf_upload_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Ukuran berkas PDF melebihi batas {settings.max_pdf_upload_mb} MB.",
+        )
+    ext = Path(original_filename).suffix.lower()
+    if ext not in ALLOWED_BODY_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Format berkas isi buku harus PDF (.pdf). Diterima: {ext}",
+        )
+    secure_filename = generate_secure_filename(ext)
+    target_dir = settings.books_body_dir
+    target_file = (target_dir / secure_filename).resolve()
+    if not target_file.is_relative_to(target_dir):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Path berbahaya terdeteksi.")
+    target_file.write_bytes(file_bytes)
+    return f"books/body/{secure_filename}"
+
+
+def resolve_secure_file_path(relative_or_name: Optional[str], base_dir: Path) -> Optional[Path]:
+    """Menyelesaikan path berkas secara aman dan memverifikasi tidak keluar dari base_dir (Anti-Path Traversal)."""
+    if not relative_or_name:
         return None
-    return target_file
+
+    clean_str = relative_or_name.replace("\\", "/").strip()
+    if ".." in clean_str or clean_str.startswith("/"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Path berkas tidak sah.")
+
+    # Jika tersimpan dengan prefix 'books/cover/' atau 'books/body/'
+    target = (settings.BASE_DIR / clean_str).resolve()
+    base_resolved = base_dir.resolve()
+
+    if not target.is_relative_to(base_resolved):
+        # Coba langsung dari base_dir jika yang tersimpan hanya nama berkasnya
+        target = (base_resolved / Path(clean_str).name).resolve()
+        if not target.is_relative_to(base_resolved):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Akses berkas tidak diizinkan.")
+
+    if not target.is_file():
+        return None
+    return target
+
+
+def get_secure_body_path(buku: Buku) -> Optional[Path]:
+    """Mendapatkan path aman berkas isi PDF buku."""
+    # 1. Coba dari kolom book_body di database
+    if buku.book_body:
+        path = resolve_secure_file_path(buku.book_body, settings.books_body_dir)
+        if path:
+            return path
+
+    # 2. Fallback: coba berbasis ISBN di books/body
+    isbn_clean = buku.isbn.replace("-", "").strip()
+    fallback_file = (settings.books_body_dir / f"{isbn_clean}.pdf").resolve()
+    if fallback_file.is_relative_to(settings.books_body_dir) and fallback_file.is_file():
+        return fallback_file
+    return None
+
+
+def get_secure_cover_path(buku: Buku) -> Optional[Path]:
+    """Mendapatkan path aman berkas gambar sampul buku."""
+    # 1. Coba dari kolom book_cover di database
+    if buku.book_cover:
+        path = resolve_secure_file_path(buku.book_cover, settings.books_cover_dir)
+        if path:
+            return path
+
+    # 2. Fallback: coba berbasis ISBN di books/cover
+    isbn_clean = buku.isbn.replace("-", "").strip()
+    for ext in ALLOWED_COVER_EXTENSIONS:
+        candidate = (settings.books_cover_dir / f"{isbn_clean}{ext}").resolve()
+        if candidate.is_relative_to(settings.books_cover_dir) and candidate.is_file():
+            return candidate
+    return None
+
+
+def check_pdf_exists(buku: Buku) -> bool:
+    """Periksa apakah berkas PDF isi buku tersedia di server."""
+    return get_secure_body_path(buku) is not None
+
+
+def check_cover_exists(buku: Buku) -> bool:
+    """Periksa apakah berkas gambar sampul buku tersedia di server."""
+    return get_secure_cover_path(buku) is not None
 
 
 async def list_categories(db: AsyncSession) -> list[KategoriPublic]:
@@ -128,6 +236,8 @@ async def search_books(
 
     items: list[BookPublic] = []
     for b in books:
+        has_cov = check_cover_exists(b)
+        has_body = check_pdf_exists(b)
         items.append(
             BookPublic(
                 isbn=b.isbn,
@@ -139,8 +249,11 @@ async def search_books(
                 tahun_terbit=b.tahun_terbit,
                 jumlah_halaman=b.jumlah_halaman,
                 sinopsis=b.sinopsis,
+                book_cover=b.book_cover,
+                book_body=b.book_body,
+                has_cover=has_cov,
                 is_favorite=(b.isbn in fav_isbns),
-                has_pdf=check_pdf_exists(b.isbn),
+                has_pdf=has_body,
             )
         )
 
@@ -159,8 +272,8 @@ async def get_book_by_isbn(
     db: AsyncSession,
     isbn: str,
     current_user_id: Optional[uuid.UUID] = None,
-) -> BookPublic:
-    """Ambil rincian satu buku berdasarkan ISBN."""
+) -> tuple[Buku, BookPublic]:
+    """Ambil model Buku dan skema BookPublic berdasarkan ISBN."""
     clean_isbn = clean_and_validate_isbn13(isbn)
     stmt = select(Buku).options(joinedload(Buku.kategori)).where(Buku.isbn == clean_isbn)
     buku = (await db.execute(stmt)).scalar_one_or_none()
@@ -175,7 +288,7 @@ async def get_book_by_isbn(
         )
         is_fav = (await db.execute(fav_stmt)).scalar_one_or_none() is not None
 
-    return BookPublic(
+    pub = BookPublic(
         isbn=buku.isbn,
         id_kategori=buku.id_kategori,
         kategori_nama=buku.kategori.kategori if buku.kategori else None,
@@ -185,9 +298,13 @@ async def get_book_by_isbn(
         tahun_terbit=buku.tahun_terbit,
         jumlah_halaman=buku.jumlah_halaman,
         sinopsis=buku.sinopsis,
+        book_cover=buku.book_cover,
+        book_body=buku.book_body,
+        has_cover=check_cover_exists(buku),
         is_favorite=is_fav,
-        has_pdf=check_pdf_exists(buku.isbn),
+        has_pdf=check_pdf_exists(buku),
     )
+    return buku, pub
 
 
 async def toggle_favorite(
@@ -198,7 +315,6 @@ async def toggle_favorite(
     """Toggle status favorit buku untuk pengguna yang sedang terotentikasi."""
     clean_isbn = clean_and_validate_isbn13(isbn)
 
-    # Pastikan buku ada
     buku = (await db.execute(select(Buku).where(Buku.isbn == clean_isbn))).scalar_one_or_none()
     if not buku:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Buku tidak ditemukan.")
@@ -266,7 +382,9 @@ async def get_user_favorites(
                 tahun_terbit=b.tahun_terbit,
                 jumlah_halaman=b.jumlah_halaman,
                 kategori_nama=b.kategori.kategori if b.kategori else None,
-                has_pdf=check_pdf_exists(b.isbn),
+                book_cover=b.book_cover,
+                has_cover=check_cover_exists(b),
+                has_pdf=check_pdf_exists(b),
                 favorited_at=f.created_at,
             )
         )

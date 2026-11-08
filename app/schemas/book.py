@@ -42,6 +42,9 @@ class BookPublic(BaseModel):
     tahun_terbit: Optional[str] = None
     jumlah_halaman: int
     sinopsis: Optional[str] = None
+    book_cover: Optional[str] = None
+    book_body: Optional[str] = None
+    has_cover: bool = False
     is_favorite: bool = False
     has_pdf: bool = False
 
@@ -90,5 +93,7 @@ class UserFavoriteItem(BaseModel):
     tahun_terbit: Optional[str] = None
     jumlah_halaman: int
     kategori_nama: Optional[str] = None
+    book_cover: Optional[str] = None
+    has_cover: bool = False
     has_pdf: bool = False
     favorited_at: datetime

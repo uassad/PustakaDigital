@@ -218,6 +218,8 @@ CREATE TABLE uas_sad.buku (
     tahun_terbit    varchar(60),
     jumlah_halaman  smallint      NOT NULL,
     sinopsis        varchar(60),
+    book_cover      varchar(255),
+    book_body       varchar(255),
     created_at      timestamptz   NOT NULL DEFAULT now(),
     created_by      uuid          NOT NULL,
     updated_at      timestamptz,
