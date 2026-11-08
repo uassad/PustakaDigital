@@ -50,3 +50,15 @@ a mobile network. Enter the six-digit code from the inbox to finish registration
 Codes expire after five minutes by default, allow five verification attempts,
 and are stored only as keyed hashes. Pending registrations store an Argon2id
 password hash. OTP simulation endpoints are disabled when `ENVIRONMENT=production`.
+
+## Stop the services
+
+To stop the docker compose:
+```powershell
+docker compose -f docker-compose.otp.yml down
+```
+
+To stop uvicorn:
+```powershell
+deactivate
+```
