@@ -86,6 +86,25 @@ class UserLogin(BaseModel):
         return v
 
 
+class UserProfileUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    username: Username
+    nomor_telepon: Optional[Phone] = None
+    current_password: str = Field(min_length=1, max_length=128, repr=False)
+
+    @field_validator("nomor_telepon", mode="before")
+    @classmethod
+    def _blank_phone(cls, v: Any) -> Any:
+        return None if isinstance(v, str) and not v.strip() else v
+
+
+class AccountDeletion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(min_length=1, max_length=128, repr=False)
+
+
 class UserPublic(BaseModel):
     """Data pengguna yang BOLEH dikirim ke klien. Tidak pernah memuat hash password."""
 
@@ -95,6 +114,7 @@ class UserPublic(BaseModel):
     nomor_telepon: Optional[str] = None
     email_verified: bool = False
     phone_verified: bool = False
+    account_status: str = "normal"
     role: str
 
 

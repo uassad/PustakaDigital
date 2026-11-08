@@ -1,6 +1,6 @@
 """Entry point FastAPI.
 
-Jalankan (dari folder app_project):
+Jalankan (dari folder proyek yang berisi main.py):
     uvicorn main:app --reload                      # development
     uvicorn main:app --host 127.0.0.1 --port 8000 --no-server-header --proxy-headers   # produksi (di belakang reverse proxy TLS)
 """

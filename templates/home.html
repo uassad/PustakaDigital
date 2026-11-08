@@ -73,6 +73,55 @@
     <button id="next-page-btn" class="btn" type="button" disabled>Berikutnya &raquo;</button>
   </nav>
 </div>
+
+<div class="modal-backdrop" id="modal-profile" role="dialog" aria-modal="true" aria-labelledby="modal-profile-title">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modal-profile-title">Informasi Profil</h2>
+      <button class="modal-close" type="button" id="close-profile-modal" aria-label="Tutup profil">×</button>
+    </div>
+    <form id="profile-form" novalidate>
+      <div id="profile-error" class="notice error" role="alert" hidden></div>
+      <label for="profile-username">Username</label>
+      <input id="profile-username" name="username" autocomplete="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9_]{3,30}" required>
+      <label for="profile-email">Email</label>
+      <input id="profile-email" name="email" type="email" readonly>
+      <small id="profile-email-help" class="muted">Email tidak dapat diubah dari halaman profil.</small>
+      <label for="profile-phone">Nomor telepon</label>
+      <input id="profile-phone" name="nomor_telepon" type="tel" autocomplete="tel" maxlength="15" pattern="\+?[0-9]{8,14}">
+      <p class="muted" id="profile-status"></p>
+      <div id="profile-password-field">
+        <label for="profile-password">Kata sandi saat ini</label>
+        <input id="profile-password" name="current_password" type="password" autocomplete="current-password" maxlength="128" required>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" type="button" id="close-profile-button">Tutup</button>
+        <button class="btn primary" type="submit" id="save-profile-btn">Simpan Perubahan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modal-delete-account" role="dialog" aria-modal="true" aria-labelledby="modal-delete-title">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modal-delete-title">Hapus Akun</h2>
+      <button class="modal-close" type="button" id="close-delete-modal" aria-label="Tutup">×</button>
+    </div>
+    <p>Tindakan ini permanen. Akun dan seluruh buku favorit Anda akan dihapus.</p>
+    <form id="delete-account-form" novalidate>
+      <div id="delete-account-error" class="notice error" role="alert" hidden></div>
+      <label for="delete-account-confirm">Ketik HAPUS untuk mengonfirmasi</label>
+      <input id="delete-account-confirm" name="confirmation" autocomplete="off" required>
+      <label for="delete-account-password">Kata sandi saat ini</label>
+      <input id="delete-account-password" name="password" type="password" autocomplete="current-password" maxlength="128" required>
+      <div class="modal-footer">
+        <button class="btn" type="button" id="cancel-delete-account">Batal</button>
+        <button class="btn danger" type="submit" id="confirm-delete-account">Hapus Akun</button>
+      </div>
+    </form>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}

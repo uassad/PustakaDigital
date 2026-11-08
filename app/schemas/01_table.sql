@@ -154,6 +154,7 @@ CREATE TABLE uas_sad.pengguna (
     nomor_telepon varchar(15),
     email_verified boolean     NOT NULL DEFAULT false,
     phone_verified boolean     NOT NULL DEFAULT false,
+    account_status varchar(10)   NOT NULL DEFAULT 'normal',   -- [ADD] 'normal' atau 'beku' (dibekukan karena pelanggaran upload)
     password      varchar(255)  NOT NULL,
     created_at    timestamptz   NOT NULL DEFAULT now(),
     created_by    uuid          NOT NULL,
@@ -172,7 +173,8 @@ CREATE TABLE uas_sad.pengguna (
     CONSTRAINT pengguna_phone_format    CHECK (nomor_telepon IS NULL
                                                OR nomor_telepon ~ '^\+?[0-9]{8,14}$'),
     -- [ADD] refuses plaintext or any non-Argon2id value being stored by mistake
-    CONSTRAINT pengguna_password_is_argon2id CHECK (password LIKE '$argon2id$%')
+    CONSTRAINT pengguna_password_is_argon2id CHECK (password LIKE '$argon2id$%'),
+    CONSTRAINT pengguna_account_status_check CHECK (account_status IN ('normal', 'beku'))   -- [ADD]
 );
 -- [ADD] case-insensitive uniqueness ("Alice@x.com" vs "alice@x.com")
 CREATE UNIQUE INDEX pengguna_email_lower_uq    ON uas_sad.pengguna (lower(email));
@@ -181,6 +183,21 @@ CREATE INDEX pengguna_role_id_idx ON uas_sad.pengguna (role_id);
 
 COMMENT ON COLUMN uas_sad.pengguna.password IS
   'Argon2id hash only (salt embedded by library). Never plaintext, never reversible encryption. Pepper is NOT stored in the database.';
+
+-- ---------------------------------------------------------------------
+-- 4b. Daily invalid book-upload attempts [ADD]
+--    Counter is keyed by database date; it rolls over at midnight DB time.
+--    Frozen status remains until IT explicitly changes pengguna.account_status.
+-- ---------------------------------------------------------------------
+CREATE TABLE uas_sad.upload_failure_daily (
+    user_id      uuid    NOT NULL,
+    failure_date date    NOT NULL DEFAULT CURRENT_DATE,
+    attempts     integer NOT NULL DEFAULT 0,
+    CONSTRAINT upload_failure_daily_pkey PRIMARY KEY (user_id, failure_date),
+    CONSTRAINT upload_failure_daily_user_fkey FOREIGN KEY (user_id)
+        REFERENCES uas_sad.pengguna (id_pengguna) ON DELETE CASCADE,
+    CONSTRAINT upload_failure_daily_attempts CHECK (attempts >= 0)
+);
 
 -- ---------------------------------------------------------------------
 -- 4a. registration_challenge [ADD]
@@ -285,6 +302,14 @@ CREATE TRIGGER trg_buku_audit           BEFORE UPDATE ON uas_sad.buku           
 CREATE TRIGGER trg_favorit_audit        BEFORE UPDATE ON uas_sad.favorit        FOR EACH ROW EXECUTE FUNCTION uas_sad.tg_audit_columns();
 
 COMMIT;
+
+-- =====================================================================
+-- Migration: tambah kolom account_status ke tabel pengguna yang sudah ada
+-- Jalankan INI jika tabel sudah ada sebelumnya (bukan dari awal):
+-- =====================================================================
+-- ALTER TABLE uas_sad.pengguna ADD COLUMN IF NOT EXISTS
+--     account_status varchar(10) NOT NULL DEFAULT 'normal'
+--     CONSTRAINT pengguna_account_status_check CHECK (account_status IN ('normal', 'beku'));
 
 -- =====================================================================
 -- HUMAN-ONLY: creating the first administrator

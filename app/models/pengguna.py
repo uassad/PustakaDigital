@@ -29,6 +29,7 @@ class Pengguna(AuditMixin, Base):
     nomor_telepon: Mapped[Optional[str]] = mapped_column(String(15), unique=True)
     email_verified: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
     phone_verified: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
+    account_status: Mapped[str] = mapped_column(String(10), nullable=False, server_default="normal")
 
     # Hanya hash Argon2id (+pepper di aplikasi). Jangan pernah dikirim ke klien / di-log.
     password: Mapped[str] = mapped_column(String(255), nullable=False)

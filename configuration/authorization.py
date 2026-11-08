@@ -13,13 +13,17 @@ KEAMANAN (OWASP Top 10: 2025 — A01: Broken Access Control):
    Gunakan `verify_user_access(current_user, target_user_id)` pada level backend di folder configuration ini.
 """
 import uuid
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.pengguna import Pengguna
-from configuration.authentication import get_current_user
+from configuration.authentication import get_authenticated_user_from_token, get_current_user
+from configuration.database_session import get_db
 
 ROLE_ADMIN = "Administrator"
 ROLE_READER = "Authenticated User"
+ADMIN_SESSION_COOKIE = "uas_sad_admin_session"
+ADMIN_DASHBOARD_PATH = "/seAj2hB9sk/admin"
 
 
 def is_admin(user: Pengguna) -> bool:
@@ -37,6 +41,11 @@ def require_roles(*allowed: str):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Anda tidak memiliki hak akses untuk tindakan ini.",
             )
+        if is_admin(user) and user.account_status == "beku":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Akun administrator dibekukan. Hubungi tim IT untuk pembukaan manual.",
+            )
         return user
 
     return _checker
@@ -44,6 +53,32 @@ def require_roles(*allowed: str):
 
 require_admin = require_roles(ROLE_ADMIN)
 require_reader = require_roles(ROLE_READER, ROLE_ADMIN)   # admin juga boleh membaca
+
+
+async def get_current_admin_page_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> Pengguna:
+    """Authenticate the admin HTML page using its scoped HttpOnly session cookie."""
+    token = request.cookies.get(ADMIN_SESSION_COOKIE)
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Autentikasi administrator diperlukan.",
+        )
+
+    user = await get_authenticated_user_from_token(token, db)
+    if not is_admin(user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Anda tidak memiliki hak akses untuk tindakan ini.",
+        )
+    if user.account_status == "beku":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Akun administrator dibekukan. Hubungi tim IT untuk pembukaan manual.",
+        )
+    return user
 
 
 def verify_user_access(
@@ -75,4 +110,3 @@ def verify_user_access(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Akses ditolak: Anda tidak memiliki izin untuk melihat atau memodifikasi data akun lain.",
     )
-

@@ -17,7 +17,8 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -25,17 +26,21 @@ from sqlalchemy.orm import joinedload
 from app.models.buku import Buku
 from app.models.favorit import Favorit
 from app.models.kategori import KategoriBuku
+from app.models.upload_failure_daily import UploadFailureDaily
 from app.schemas.book import (
     BookListResponse,
     BookPublic,
+    BookUpdate,
     KategoriPublic,
     UserFavoriteItem,
     clean_and_validate_isbn13,
 )
-from configuration.settings import settings
+from configuration.settings import BASE_DIR, settings
 
-ALLOWED_COVER_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+ALLOWED_COVER_EXTENSIONS = {".jpg"}
 ALLOWED_BODY_EXTENSIONS = {".pdf"}
+
+BAD_UPLOAD_LIMIT = 4
 
 
 def escape_like(text: str) -> str:
@@ -61,17 +66,8 @@ def generate_secure_filename(extension: str) -> str:
 
 def save_book_cover(file_bytes: bytes, original_filename: str) -> str:
     """Menyimpan sampul buku ke books/cover dengan nama acak aman dari CSRF."""
-    if len(file_bytes) > settings.max_cover_upload_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"Ukuran berkas gambar sampul melebihi batas {settings.max_cover_upload_mb} MB.",
-        )
+    validate_book_cover(file_bytes, original_filename)
     ext = Path(original_filename).suffix.lower()
-    if ext not in ALLOWED_COVER_EXTENSIONS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Format berkas sampul tidak valid. Ekstensi yang diizinkan: {', '.join(sorted(ALLOWED_COVER_EXTENSIONS))}",
-        )
     secure_filename = generate_secure_filename(ext)
     target_dir = settings.books_cover_dir
     target_file = (target_dir / secure_filename).resolve()
@@ -81,8 +77,35 @@ def save_book_cover(file_bytes: bytes, original_filename: str) -> str:
     return f"books/cover/{secure_filename}"
 
 
+def validate_book_cover(file_bytes: bytes, original_filename: str) -> None:
+    if len(file_bytes) > settings.max_cover_upload_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Ukuran berkas gambar sampul melebihi batas {settings.max_cover_upload_mb} MB.",
+        )
+    ext = Path(original_filename).suffix.lower()
+    if ext not in ALLOWED_COVER_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Format sampul tidak valid. Hanya berkas .jpg yang diizinkan.",
+        )
+    if len(file_bytes) < 4 or not file_bytes.startswith(b"\xff\xd8\xff") or not file_bytes.endswith(b"\xff\xd9"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Isi berkas tidak sesuai format gambar .jpg.")
+
+
 def save_book_body(file_bytes: bytes, original_filename: str) -> str:
     """Menyimpan isi buku (PDF) ke books/body dengan nama acak aman dari CSRF."""
+    validate_book_body(file_bytes, original_filename)
+    secure_filename = generate_secure_filename(".pdf")
+    target_dir = settings.books_body_dir
+    target_file = (target_dir / secure_filename).resolve()
+    if not target_file.is_relative_to(target_dir):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Path berbahaya terdeteksi.")
+    target_file.write_bytes(file_bytes)
+    return f"books/body/{secure_filename}"
+
+
+def validate_book_body(file_bytes: bytes, original_filename: str) -> None:
     if len(file_bytes) > settings.max_pdf_upload_bytes:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
@@ -92,15 +115,10 @@ def save_book_body(file_bytes: bytes, original_filename: str) -> str:
     if ext not in ALLOWED_BODY_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Format berkas isi buku harus PDF (.pdf). Diterima: {ext}",
+            detail="Format isi buku tidak valid. Hanya berkas .pdf yang diizinkan.",
         )
-    secure_filename = generate_secure_filename(ext)
-    target_dir = settings.books_body_dir
-    target_file = (target_dir / secure_filename).resolve()
-    if not target_file.is_relative_to(target_dir):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Path berbahaya terdeteksi.")
-    target_file.write_bytes(file_bytes)
-    return f"books/body/{secure_filename}"
+    if not file_bytes.startswith(b"%PDF-") or b"%%EOF" not in file_bytes[-1024:]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Isi berkas tidak sesuai format dokumen .pdf.")
 
 
 def resolve_secure_file_path(relative_or_name: Optional[str], base_dir: Path) -> Optional[Path]:
@@ -113,7 +131,7 @@ def resolve_secure_file_path(relative_or_name: Optional[str], base_dir: Path) ->
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Path berkas tidak sah.")
 
     # Jika tersimpan dengan prefix 'books/cover/' atau 'books/body/'
-    target = (settings.BASE_DIR / clean_str).resolve()
+    target = (BASE_DIR / clean_str).resolve()
     base_resolved = base_dir.resolve()
 
     if not target.is_relative_to(base_resolved):
@@ -389,3 +407,99 @@ async def get_user_favorites(
             )
         )
     return results
+
+
+async def record_bad_upload_attempt(db: AsyncSession, user: "Pengguna") -> int:
+    """Atomically count invalid file formats per database day and freeze on the fourth."""
+    table = UploadFailureDaily.__table__
+    await db.execute(delete(UploadFailureDaily).where(UploadFailureDaily.failure_date < func.current_date()))
+    statement = (
+        pg_insert(table)
+        .values(user_id=user.id_pengguna, failure_date=func.current_date(), attempts=1)
+        .on_conflict_do_update(
+            index_elements=[table.c.user_id, table.c.failure_date],
+            set_={"attempts": table.c.attempts + 1},
+        )
+        .returning(table.c.attempts)
+    )
+    count = int((await db.execute(statement)).scalar_one())
+    if count >= BAD_UPLOAD_LIMIT:
+        user.account_status = "beku"
+        user.updated_by = user.id_pengguna
+    await db.commit()
+    return count
+
+
+async def create_book(db: AsyncSession, data: "BookCreate", created_by: uuid.UUID) -> tuple[Buku, BookPublic]:
+    """Membuat entri buku baru di database."""
+    from app.schemas.book import BookCreate as BC  # noqa: F401
+    new_buku = Buku(
+        isbn=data.isbn,
+        id_kategori=data.id_kategori,
+        judul_buku=data.judul_buku,
+        nama_penulis=data.nama_penulis,
+        nama_penerbit=data.nama_penerbit,
+        tahun_terbit=data.tahun_terbit,
+        jumlah_halaman=data.jumlah_halaman,
+        sinopsis=data.sinopsis,
+        created_by=created_by,
+    )
+    db.add(new_buku)
+    try:
+        await db.commit()
+        await db.refresh(new_buku)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="ISBN sudah terdaftar atau kategori tidak ditemukan.")
+    buku, pub = await get_book_by_isbn(db, data.isbn)
+    return buku, pub
+
+
+async def update_book(
+    db: AsyncSession, isbn: str, data: BookUpdate, updated_by: uuid.UUID
+) -> BookPublic:
+    buku, _ = await get_book_by_isbn(db, isbn)
+    for field in data.model_fields_set:
+        setattr(buku, field, getattr(data, field))
+    buku.updated_by = updated_by
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Kategori buku tidak ditemukan.") from None
+    return (await get_book_by_isbn(db, isbn))[1]
+
+
+async def get_admin_book_stats(db: AsyncSession) -> dict[str, int]:
+    total, with_pdf, with_cover = (
+        await db.execute(
+            select(
+                func.count(Buku.isbn),
+                func.count(Buku.isbn).filter(Buku.book_body.is_not(None)),
+                func.count(Buku.isbn).filter(Buku.book_cover.is_not(None)),
+            )
+        )
+    ).one()
+    return {
+        "total_books": int(total),
+        "books_with_pdf": int(with_pdf),
+        "books_without_pdf": int(total - with_pdf),
+        "books_with_cover": int(with_cover),
+    }
+
+
+async def delete_book(db: AsyncSession, isbn: str, deleted_by: uuid.UUID) -> None:
+    """Menghapus buku dan berkas fisiknya secara aman."""
+    buku, _ = await get_book_by_isbn(db, isbn)
+
+    # Hapus berkas fisik secara aman
+    for path_func in [get_secure_body_path, get_secure_cover_path]:
+        try:
+            p = path_func(buku)
+            if p and p.is_file():
+                p.unlink(missing_ok=True)
+        except Exception:
+            pass  # Log but continue
+
+    await db.delete(buku)
+    await db.commit()

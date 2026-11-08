@@ -17,8 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.pengguna import Pengguna
 from app.schemas.book import (
+    BookCreate,
     BookListResponse,
     BookPublic,
+    BookUpdate,
     FavoriteToggleResponse,
     KategoriPublic,
     UserFavoriteItem,
@@ -28,6 +30,7 @@ from configuration.authentication import get_current_user, get_optional_current_
 from configuration.authorization import require_admin, require_reader, verify_user_access
 from configuration.database_session import get_db
 from configuration.rate_limiter import rate_limit
+from configuration.settings import settings
 
 router = APIRouter(prefix="/api", tags=["books"])
 
@@ -146,32 +149,72 @@ async def upload_book_files(
     - Hanya role Administrator yang berwenang.
     - Nama berkas diubah menjadi acak ber-entropi tinggi (anti-CSRF & overwrite).
     - Lokasi berkas disimpan di database ('books/cover' dan 'books/body').
+    - Akun dibekukan setelah 4x percobaan upload tipe file tidak valid.
     """
+    # Periksa status akun admin
+    if current_user.account_status == "beku":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Akun Anda telah dibekukan. Hubungi tim IT untuk pemulihan akun.",
+        )
+
     buku, _ = await book_service.get_book_by_isbn(db, isbn)
-    updated = False
-
+    incoming = []
     if cover and cover.filename:
-        cover_bytes = await cover.read()
-        cover_path = book_service.save_book_cover(cover_bytes, cover.filename)
-        buku.book_cover = cover_path
-        updated = True
-
+        incoming.append((cover, "cover"))
     if body and body.filename:
-        body_bytes = await body.read()
-        body_path = book_service.save_book_body(body_bytes, body.filename)
-        buku.book_body = body_path
-        updated = True
+        incoming.append((body, "body"))
+    if not incoming:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pilih minimal satu berkas untuk diunggah.")
 
-    if updated:
+    validated_files = []
+    for uploaded, kind in incoming:
+        file_bytes = await uploaded.read()
+        try:
+            if kind == "cover":
+                book_service.validate_book_cover(file_bytes, uploaded.filename or "")
+            else:
+                book_service.validate_book_body(file_bytes, uploaded.filename or "")
+        except HTTPException as exc:
+            if exc.status_code != status.HTTP_400_BAD_REQUEST:
+                raise
+            attempt = await book_service.record_bad_upload_attempt(db, current_user)
+            if attempt >= book_service.BAD_UPLOAD_LIMIT:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Akun dibekukan setelah 4 percobaan format/isi file tidak valid hari ini. Hubungi tim IT untuk pembukaan manual.",
+                ) from None
+            remaining = book_service.BAD_UPLOAD_LIMIT - attempt
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{exc.detail} Percobaan tidak valid hari ini: {attempt}/{book_service.BAD_UPLOAD_LIMIT}; tersisa {remaining} sebelum akun dibekukan.",
+            ) from None
+        validated_files.append((kind, uploaded.filename or "", file_bytes))
+
+    saved_paths = []
+    try:
+        for kind, filename, file_bytes in validated_files:
+            if kind == "cover":
+                buku.book_cover = book_service.save_book_cover(file_bytes, filename)
+                saved_paths.append((buku.book_cover, settings.books_cover_dir))
+            else:
+                buku.book_body = book_service.save_book_body(file_bytes, filename)
+                saved_paths.append((buku.book_body, settings.books_body_dir))
         buku.updated_by = current_user.id_pengguna
         await db.commit()
-        return {
-            "message": "Berkas buku berhasil diunggah.",
-            "book_cover": buku.book_cover,
-            "book_body": buku.book_body,
-        }
+    except Exception:
+        await db.rollback()
+        for relative_path, base_dir in saved_paths:
+            path = book_service.resolve_secure_file_path(relative_path, base_dir)
+            if path is not None:
+                path.unlink(missing_ok=True)
+        raise
 
-    return {"message": "Tidak ada berkas yang diunggah."}
+    return {
+        "message": "Berkas buku berhasil diunggah.",
+        "book_cover": buku.book_cover,
+        "book_body": buku.book_body,
+    }
 
 
 @router.post(
@@ -232,3 +275,77 @@ async def get_specific_user_favorites(
         page=page,
         page_size=page_size,
     )
+
+
+# ===== ADMIN DASHBOARD ENDPOINTS =====
+
+@router.get(
+    "/admin/books",
+    response_model=BookListResponse,
+    dependencies=[Depends(require_admin)],
+)
+async def admin_list_books(
+    q: Optional[str] = Query(None, max_length=100),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: Pengguna = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> BookListResponse:
+    """Daftar semua buku untuk Admin Dashboard."""
+    return await book_service.search_books(db=db, q=q, page=page, page_size=page_size)
+
+
+@router.get(
+    "/admin/stats",
+    dependencies=[Depends(require_admin)],
+)
+async def admin_book_stats(db: AsyncSession = Depends(get_db)) -> dict[str, int]:
+    return await book_service.get_admin_book_stats(db)
+
+
+@router.post(
+    "/admin/books",
+    response_model=BookPublic,
+    status_code=201,
+    dependencies=[Depends(rate_limit("admin_create_book", limit=20, window_seconds=60))],
+)
+async def admin_create_book(
+    payload: BookCreate,
+    current_user: Pengguna = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> BookPublic:
+    """Membuat entri buku baru (tanpa file — file diupload terpisah)."""
+    if current_user.account_status == "beku":
+        raise HTTPException(status_code=403, detail="Akun dibekukan.")
+    _, pub = await book_service.create_book(db, payload, current_user.id_pengguna)
+    return pub
+
+
+@router.post(
+    "/admin/books/{isbn}/update",
+    response_model=BookPublic,
+    dependencies=[Depends(require_admin), Depends(rate_limit("admin_update_book", limit=30, window_seconds=60))],
+)
+async def admin_update_book(
+    isbn: str,
+    payload: BookUpdate,
+    current_user: Pengguna = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> BookPublic:
+    return await book_service.update_book(db, isbn, payload, current_user.id_pengguna)
+
+
+@router.delete(
+    "/admin/books/{isbn}",
+    status_code=204,
+    dependencies=[Depends(require_admin)],
+)
+async def admin_delete_book(
+    isbn: str,
+    current_user: Pengguna = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Menghapus buku dari katalog beserta berkas fisiknya."""
+    if current_user.account_status == "beku":
+        raise HTTPException(status_code=403, detail="Akun dibekukan.")
+    await book_service.delete_book(db, isbn, current_user.id_pengguna)

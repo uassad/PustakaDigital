@@ -16,8 +16,18 @@ export async function getCurrentUser() {
   return cached;
 }
 
-export function logout() {
-  // JWT stateless: logout = membuang token di klien. Token tetap valid sampai exp (singkat, 30 menit).
+export async function logout() {
+  try {
+    const response = await fetch("/api/auth/admin-session", {
+      method: "DELETE",
+      credentials: "same-origin",
+      cache: "no-store",
+      referrerPolicy: "no-referrer",
+    });
+    if (!response.ok) throw new Error(`Cookie cleanup failed (${response.status}).`);
+  } catch (error) {
+    console.error("Failed to clear the administrator session cookie.", error);
+  }
   session.clear();
   location.assign("/login");
 }

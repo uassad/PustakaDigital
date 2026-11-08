@@ -1,4 +1,4 @@
-import { api, ApiError } from "../api.js";
+import { api, ApiError, session } from "../api.js";
 import { getCurrentUser, logout } from "../auth.js";
 import { clear, debounce, el, show, toast } from "../dom.js";
 
@@ -13,6 +13,22 @@ let showingOnlyFavorites = false;
 // Elemen DOM
 const userNav = document.getElementById("user-nav");
 const guestBanner = document.getElementById("guest-banner");
+const profileModal = document.getElementById("modal-profile");
+const profileForm = document.getElementById("profile-form");
+const profileUsername = document.getElementById("profile-username");
+const profileEmail = document.getElementById("profile-email");
+const profilePhone = document.getElementById("profile-phone");
+const profilePassword = document.getElementById("profile-password");
+const profilePasswordField = document.getElementById("profile-password-field");
+const profileStatus = document.getElementById("profile-status");
+const profileError = document.getElementById("profile-error");
+const saveProfileBtn = document.getElementById("save-profile-btn");
+const deleteAccountModal = document.getElementById("modal-delete-account");
+const deleteAccountForm = document.getElementById("delete-account-form");
+const deleteAccountConfirm = document.getElementById("delete-account-confirm");
+const deleteAccountPassword = document.getElementById("delete-account-password");
+const deleteAccountError = document.getElementById("delete-account-error");
+const confirmDeleteAccountBtn = document.getElementById("confirm-delete-account");
 const searchInput = document.getElementById("search-input");
 const searchClearBtn = document.getElementById("search-clear-btn");
 const categoryChips = document.getElementById("category-chips");
@@ -25,38 +41,158 @@ const prevPageBtn = document.getElementById("prev-page-btn");
 const nextPageBtn = document.getElementById("next-page-btn");
 const pageInfo = document.getElementById("page-info");
 
-/** Inisialisasi navigasi pengguna (Tamu vs Pengguna Terotentikasi) */
+function openModal(modal) {
+  modal.classList.add("open");
+  modal.querySelector("input:not(:disabled)")?.focus();
+}
+
+function closeModal(modal) {
+  modal.classList.remove("open");
+}
+
+function setFormError(box, message) {
+  box.textContent = message;
+  box.hidden = !message;
+}
+
+function openProfileModal(user) {
+  const admin = user.role.toLowerCase() === "administrator";
+  profileForm.reset();
+  profileUsername.value = user.username;
+  profileEmail.value = user.email;
+  profilePhone.value = user.nomor_telepon || "";
+  profileUsername.disabled = admin;
+  profilePhone.disabled = admin;
+  profilePassword.disabled = admin;
+  profilePasswordField.hidden = admin;
+  saveProfileBtn.hidden = admin;
+  profileStatus.textContent = [
+    `Status akun: ${user.account_status === "beku" ? "Dibekukan" : "Normal"}.`,
+    `Email: ${user.email_verified ? "terverifikasi" : "belum terverifikasi"}.`,
+    `Telepon: ${user.phone_verified ? "terverifikasi" : "belum terverifikasi"}.`,
+  ].join(" ");
+  setFormError(profileError, "");
+  openModal(profileModal);
+}
+
+function openDeleteAccountModal() {
+  deleteAccountForm.reset();
+  setFormError(deleteAccountError, "");
+  openModal(deleteAccountModal);
+}
+
+async function openAdminDashboard(menu, button) {
+  menu.open = false;
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/auth/admin-session", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.token}` },
+      credentials: "same-origin",
+      cache: "no-store",
+      referrerPolicy: "no-referrer",
+    });
+    if (!response.ok) {
+      throw new ApiError(response.status, "Sesi administrator tidak dapat diperbarui. Silakan masuk lagi.");
+    }
+    location.assign("/seAj2hB9sk/admin");
+  } catch (error) {
+    const message = error instanceof ApiError
+      ? error.message
+      : "Gagal membuka dashboard administrator.";
+    console.error("Failed to refresh the administrator dashboard session.", error);
+    toast(message, true);
+    button.disabled = false;
+  }
+}
+
+/** Inisialisasi navigasi pengguna (Tamu vs pengguna dan administrator). */
 function initUserNav(user) {
   clear(userNav);
 
-  if (user) {
-    // Pengguna Terotentikasi (Authenticated User / Admin)
-    const userInfo = el("span", { class: "user-greeting" },
-      "Halo, ",
-      el("strong", { text: user.username }),
-      el("span", { class: "role-badge", text: `(${user.role})` })
+  if (!user) {
+    userNav.append(
+      el("span", { class: "guest-badge", text: "Tamu" }),
+      el("a", { class: "btn primary btn-sm", href: "/login", text: "Masuk" }),
+      el("a", { class: "btn btn-sm", href: "/register", text: "Daftar" }),
     );
-
-    const logoutBtn = el("button", {
-      class: "btn btn-sm",
-      type: "button",
-      text: "Keluar",
-      on: { click: logout },
-    });
-
-    userNav.append(userInfo, logoutBtn);
-    show(guestBanner, false);
-    show(favFilterWrapper, true);
-  } else {
-    // Mode Tamu (Guest)
-    const guestLabel = el("span", { class: "guest-badge", text: "Tamu" });
-    const loginLink = el("a", { class: "btn primary btn-sm", href: "/login", text: "Masuk" });
-    const registerLink = el("a", { class: "btn btn-sm", href: "/register", text: "Daftar" });
-
-    userNav.append(guestLabel, loginLink, registerLink);
     show(guestBanner, true);
     show(favFilterWrapper, false);
+    return;
   }
+
+  const admin = user.role.toLowerCase() === "administrator";
+  const menu = el("details", { class: "account-menu" });
+  const adminBooksButton = admin
+    ? el("button", {
+      class: "admin-menu-link",
+      type: "button",
+      text: "Kelola Buku",
+      on: {
+        click: (event) => openAdminDashboard(menu, event.currentTarget),
+      },
+    })
+    : null;
+  const profileAction = el("button", {
+    class: "admin-menu-link",
+    type: "button",
+    text: "Informasi Profil",
+    on: {
+      click: () => {
+        menu.open = false;
+        openProfileModal(user);
+      },
+    },
+  });
+  const items = admin
+    ? [adminBooksButton, profileAction]
+    : [
+      profileAction,
+      el("button", {
+        class: "admin-menu-link",
+        type: "button",
+        text: "Hapus Akun",
+        on: {
+          click: () => {
+            menu.open = false;
+            openDeleteAccountModal();
+          },
+        },
+      }),
+      el("button", {
+        class: "admin-menu-link",
+        type: "button",
+        text: "Favorit Buku",
+        on: {
+          click: () => {
+            showingOnlyFavorites = true;
+            filterFavoritesBtn.classList.add("active");
+            currentPage = 1;
+            loadBooks();
+            menu.open = false;
+            bookGrid.scrollIntoView({ behavior: "smooth" });
+          },
+        },
+      }),
+    ];
+
+  items.push(
+    el("button", {
+      class: "admin-menu-link",
+      type: "button",
+      text: "Keluar",
+      on: {
+        click: logout,
+      },
+    }),
+  );
+  menu.append(
+    el("summary", { class: "btn btn-sm", text: user.username, "aria-label": "Buka menu akun" }),
+    el("div", { class: "account-menu-panel" }, items),
+  );
+  userNav.append(menu);
+  show(guestBanner, false);
+  show(favFilterWrapper, !admin);
 }
 
 /** Muat daftar kategori dari backend */
@@ -328,6 +464,93 @@ async function loadBooks() {
     toast("Gagal memuat katalog buku.", true);
   }
 }
+
+profileForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setFormError(profileError, "");
+  if (!profileForm.reportValidity()) return;
+
+  saveProfileBtn.disabled = true;
+  try {
+    currentUser = await api("/api/auth/me", {
+      method: "PATCH",
+      json: {
+        username: profileUsername.value.trim(),
+        nomor_telepon: profilePhone.value.trim() || null,
+        current_password: profilePassword.value,
+      },
+    });
+    profilePassword.value = "";
+    initUserNav(currentUser);
+    closeModal(profileModal);
+    toast("Informasi profil berhasil diperbarui.");
+  } catch (error) {
+    setFormError(
+      profileError,
+      error instanceof ApiError ? error.message : "Gagal memperbarui profil.",
+    );
+  } finally {
+    saveProfileBtn.disabled = false;
+  }
+});
+
+deleteAccountForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setFormError(deleteAccountError, "");
+  if (!deleteAccountForm.reportValidity()) return;
+  if (deleteAccountConfirm.value !== "HAPUS") {
+    setFormError(deleteAccountError, "Ketik HAPUS persis untuk mengonfirmasi penghapusan akun.");
+    deleteAccountConfirm.focus();
+    return;
+  }
+
+  confirmDeleteAccountBtn.disabled = true;
+  try {
+    await api("/api/auth/me", {
+      method: "DELETE",
+      json: { password: deleteAccountPassword.value },
+    });
+    session.clear();
+    location.assign("/login?deleted=1");
+  } catch (error) {
+    setFormError(
+      deleteAccountError,
+      error instanceof ApiError ? error.message : "Gagal menghapus akun.",
+    );
+  } finally {
+    confirmDeleteAccountBtn.disabled = false;
+  }
+});
+
+function closeProfileModal() {
+  profilePassword.value = "";
+  closeModal(profileModal);
+}
+
+function closeDeleteAccountModal() {
+  deleteAccountPassword.value = "";
+  deleteAccountConfirm.value = "";
+  closeModal(deleteAccountModal);
+}
+
+document.getElementById("close-profile-modal").addEventListener("click", closeProfileModal);
+document.getElementById("close-profile-button").addEventListener("click", closeProfileModal);
+document.getElementById("close-delete-modal").addEventListener("click", closeDeleteAccountModal);
+document.getElementById("cancel-delete-account").addEventListener("click", closeDeleteAccountModal);
+
+profileModal.addEventListener("click", (event) => {
+  if (event.target === profileModal) closeProfileModal();
+});
+deleteAccountModal.addEventListener("click", (event) => {
+  if (event.target === deleteAccountModal) closeDeleteAccountModal();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeProfileModal();
+    closeDeleteAccountModal();
+  }
+});
 
 // Inisialisasi awal saat halaman dimuat
 async function init() {
