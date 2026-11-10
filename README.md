@@ -73,7 +73,7 @@ enforce the role independently. Readers cannot open the dashboard or upload file
 
 To stop the docker compose:
 ```powershell
-docker compose -f docker-compose.otp.yml down
+LISTEN_IP=0.0.0.0 docker compose -f docker-compose.otp.yml down
 ```
 
 To stop uvicorn:
