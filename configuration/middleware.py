@@ -52,6 +52,8 @@ class SecurityHeadersMiddleware:
                     h.setdefault("Content-Security-Policy", CSP)
                 if path.startswith("/api/"):
                     h.setdefault("Cache-Control", "no-store")   # jangan cache respons API / data pribadi
+                elif not path.startswith("/static/"):
+                    h.setdefault("Cache-Control", "no-store")   # halaman HTML (termasuk admin) jangan di-cache
                 if self.production:
                     h.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
             await send(message)
@@ -66,12 +68,14 @@ class RequestSizeLimitMiddleware:
     """Menolak body terlalu besar SEBELUM diproses (mitigasi DoS & upload raksasa).
 
     - Wajib Content-Length (chunked ditolak 411) agar ukuran bisa diperiksa di muka.
-    - Batas = max_json_bytes untuk semua endpoint.
+    - Endpoint JSON dibatasi max_json_bytes (default 64 KB).
+    - Endpoint unggah berkas (multipart / upload) dibatasi max_upload_bytes (default 32 MB).
     """
 
-    def __init__(self, app: ASGIApp, *, max_json_bytes: int) -> None:
+    def __init__(self, app: ASGIApp, *, max_json_bytes: int, max_upload_bytes: int | None = None) -> None:
         self.app = app
         self.max_json = max_json_bytes
+        self.max_upload = max_upload_bytes or (max_json_bytes * 16)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http" or scope["method"] not in _BODY_METHODS:
@@ -90,8 +94,19 @@ class RequestSizeLimitMiddleware:
             await self._reject(scope, receive, send, 400, "Content-Length tidak valid.")
             return
 
-        if length > self.max_json:
-            await self._reject(scope, receive, send, 413, "Ukuran permintaan terlalu besar.")
+        content_type = headers.get(b"content-type", b"").decode("latin1", errors="ignore").lower()
+        path = scope.get("path", "")
+        is_upload = "multipart/form-data" in content_type or "/upload-files" in path
+
+        allowed_limit = self.max_upload if is_upload else self.max_json
+
+        if length > allowed_limit:
+            if is_upload:
+                limit_mb = allowed_limit / (1024 * 1024)
+                msg = f"Ukuran berkas melebihi batas maksimal yang diizinkan ({limit_mb:.0f} MB)."
+            else:
+                msg = "Ukuran permintaan terlalu besar."
+            await self._reject(scope, receive, send, 413, msg)
             return
         await self.app(scope, receive, send)
 

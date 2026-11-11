@@ -3,6 +3,10 @@
 This flow verifies the selected contact during registration. Login remains password-only.
 It is a development simulation, not a way to send real email or SMS.
 
+The application project is in the `sub` folder of this workspace. If your terminal
+is at the workspace root, run `Set-Location sub` first. The commands below assume
+your current directory is the project folder containing `main.py`.
+
 ## Start the local inbox
 
 From the project root, run:
@@ -34,6 +38,12 @@ For an existing database, run `app/schemas/03_registration_otp_migration.sql`
 as `uas_sad_migrator`. It adds contact-verification flags and the pending-registration
 challenge table. The schema migrator must own these objects.
 
+Run `app/schemas/06_account_management_migration.sql` as `uas_sad_migrator` on an
+existing database to enable reader profile updates and account deletion. Account
+deletion cascades to that reader's favorites and upload-failure counters. Readers
+can update their username and phone number after confirming their current password;
+email remains read-only because changing it requires a contact-verification flow.
+
 ## Run and try it
 
 Start the application from the project root:
@@ -51,11 +61,19 @@ Codes expire after five minutes by default, allow five verification attempts,
 and are stored only as keyed hashes. Pending registrations store an Argon2id
 password hash. OTP simulation endpoints are disabled when `ENVIRONMENT=production`.
 
+## Administrator dashboard
+
+Administrator and reader pages use separate templates and JavaScript files.
+After an administrator signs in, the server verifies the role before issuing a
+short-lived, HttpOnly cookie scoped to the admin dashboard. The dashboard checks
+that cookie and the current database role on every page request; admin APIs also
+enforce the role independently. Readers cannot open the dashboard or upload files.
+
 ## Stop the services
 
 To stop the docker compose:
 ```powershell
-docker compose -f docker-compose.otp.yml down
+LISTEN_IP=0.0.0.0 docker compose -f docker-compose.otp.yml down
 ```
 
 To stop uvicorn:

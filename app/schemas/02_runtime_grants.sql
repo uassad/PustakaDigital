@@ -17,10 +17,13 @@ REVOKE INSERT, UPDATE, DELETE ON uas_sad.role FROM grp_uas_sad_rw;
 REVOKE INSERT, UPDATE ON uas_sad.pengguna FROM grp_uas_sad_rw;
 GRANT  INSERT (id_pengguna, username, email, nomor_telepon, email_verified, phone_verified, password, created_by)
        ON uas_sad.pengguna TO grp_uas_sad_rw;
-GRANT  UPDATE (username, email, nomor_telepon, password, updated_by)
+GRANT  UPDATE (username, email, nomor_telepon, password, account_status, updated_by)
        ON uas_sad.pengguna TO grp_uas_sad_rw;
+GRANT  UPDATE (phone_verified) ON uas_sad.pengguna TO grp_uas_sad_rw;
+GRANT  DELETE ON uas_sad.pengguna TO grp_uas_sad_rw;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON uas_sad.registration_challenge TO grp_uas_sad_rw;
+GRANT SELECT, INSERT, UPDATE, DELETE ON uas_sad.upload_failure_daily TO grp_uas_sad_rw;
 
 COMMIT;
 

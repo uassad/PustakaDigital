@@ -71,9 +71,35 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
 ) -> Pengguna:
     """Dependency: pengguna yang sedang login (dengan role dari DB)."""
+    user = await _get_authenticated_user(credentials, db)
+    if user.account_status == "beku":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Akun administrator dibekukan. Hubungi tim IT untuk pembukaan manual.",
+        )
+    return user
+
+
+async def get_current_user_for_profile(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> Pengguna:
+    """Allow a frozen user to read only their account status for the dashboard notice."""
+    return await _get_authenticated_user(credentials, db)
+
+
+async def _get_authenticated_user(
+    credentials: Optional[HTTPAuthorizationCredentials],
+    db: AsyncSession,
+) -> Pengguna:
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise _unauthorized()
-    user_id = decode_access_token(credentials.credentials)
+    return await get_authenticated_user_from_token(credentials.credentials, db)
+
+
+async def get_authenticated_user_from_token(token: str, db: AsyncSession) -> Pengguna:
+    """Resolve a signed access token to its current database user."""
+    user_id = decode_access_token(token)
     user = (await db.execute(select(Pengguna).where(Pengguna.id_pengguna == user_id))).scalar_one_or_none()
     if user is None:
         raise _unauthorized()
@@ -92,7 +118,6 @@ async def get_optional_current_user(
     try:
         user_id = decode_access_token(credentials.credentials)
         user = (await db.execute(select(Pengguna).where(Pengguna.id_pengguna == user_id))).scalar_one_or_none()
-        return user
+        return user if user is not None and user.account_status != "beku" else None
     except HTTPException:
         return None
-

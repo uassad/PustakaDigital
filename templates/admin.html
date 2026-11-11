@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Dashboard Admin · Pustaka Digital</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+</head>
+{# KEAMANAN: tidak ada <script> inline, onclick=, atau style= di seluruh template #}
+<body class="admin-page">
+
+  <div class="admin-shell">
+
+    <!-- ===== Navbar Admin ===== -->
+    <nav class="admin-navbar" aria-label="Navigasi administrator">
+      <a class="brand" href="/">Pustaka<span>Digital</span></a>
+      <span class="admin-page-title">Dashboard Administrator</span>
+      <div class="admin-nav-actions">
+        <details class="admin-menu" id="admin-menu">
+          <summary class="btn btn-sm" aria-label="Buka menu administrator">Menu</summary>
+          <div class="admin-menu-panel">
+            <a class="admin-menu-link" href="#admin-books" id="menu-book-list">Kelola Buku</a>
+            <a class="admin-menu-link" href="/seAj2hB9sk/admin/logs">Log Aktivitas</a>
+            <button class="admin-menu-link" type="button" id="profile-btn">Informasi Profil</button>
+            <button class="admin-menu-link" type="button" id="logout-btn">Keluar</button>
+          </div>
+        </details>
+      </div>
+    </nav>
+
+    <!-- ===== Konten Utama ===== -->
+    <main class="admin-main" id="app">
+
+      <!-- Banner Akun Beku -->
+      <div class="frozen-banner" id="frozen-banner" role="alert" aria-live="assertive" hidden>
+        <span class="frozen-icon" aria-hidden="true">🔒</span>
+        <div class="frozen-text">
+          <strong>Akun Anda Dibekukan</strong>
+          <p>Akun dibekukan setelah 4 percobaan upload dengan format atau isi berkas tidak valid dalam satu hari. Penghitung kesalahan direset setiap hari, tetapi pembukaan akun beku harus dilakukan manual oleh tim IT.</p>
+        </div>
+      </div>
+
+      <!-- Bar Statistik -->
+      <section class="stats-bar" aria-label="Statistik buku">
+        <div class="stat-card">
+          <div class="stat-number" id="stat-total">—</div>
+          <div class="stat-label">Total Buku</div>
+        </div>
+        <div class="stat-card ok">
+          <div class="stat-number" id="stat-with-pdf">—</div>
+          <div class="stat-label">Buku dengan PDF</div>
+        </div>
+      </section>
+
+      <!-- Toolbar Aksi -->
+      <div class="admin-toolbar">
+        <div class="admin-search-wrap">
+          <span class="admin-search-icon" aria-hidden="true">🔍</span>
+          <input
+            type="search"
+            id="admin-search"
+            placeholder="Cari judul, ISBN, penulis…"
+            aria-label="Cari buku"
+            autocomplete="off"
+          >
+        </div>
+        <button class="btn primary" type="button" id="btn-add-book">+ Tambah Buku Baru</button>
+      </div>
+
+      <!-- Tabel Buku -->
+      <div class="admin-table-wrap" id="admin-books">
+        <table class="admin-table" id="admin-table" aria-label="Daftar buku">
+          <thead>
+            <tr>
+              <th scope="col">No.</th>
+              <th scope="col">Sampul</th>
+              <th scope="col">Judul Buku</th>
+              <th scope="col">ISBN</th>
+              <th scope="col">Kategori</th>
+              <th scope="col">Halaman</th>
+              <th scope="col">Status PDF</th>
+              <th scope="col">Status Cover</th>
+              <th scope="col">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="admin-tbody">
+            <!-- diisi oleh JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- State kosong / loading -->
+      <div id="table-state" aria-live="polite"></div>
+
+      <!-- Paginasi -->
+      <nav class="pagination" id="pagination" aria-label="Navigasi halaman" hidden>
+        <button class="btn btn-sm" type="button" id="prev-page-btn" aria-label="Halaman sebelumnya">← Sebelumnya</button>
+        <span class="page-info" id="page-info">Halaman 1</span>
+        <button class="btn btn-sm" type="button" id="next-page-btn" aria-label="Halaman berikutnya">Berikutnya →</button>
+      </nav>
+
+    </main>
+  </div>
+
+  <!-- ===== Toast Notifikasi ===== -->
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- ===================================================== -->
+  <!-- Modal: Tambah Buku                                    -->
+  <!-- ===================================================== -->
+  <div class="modal-backdrop" id="modal-add-book" role="dialog" aria-modal="true" aria-labelledby="modal-add-title">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-add-title">Tambah Buku Baru</h2>
+        <button class="modal-close" type="button" id="close-add-modal" aria-label="Tutup modal">×</button>
+      </div>
+
+      <form id="form-add-book" novalidate>
+        <div class="form-group">
+          <label for="add-isbn">ISBN <span aria-hidden="true">*</span></label>
+          <input type="text" id="add-isbn" name="isbn" required placeholder="Contoh: 9786020634944" autocomplete="off" inputmode="numeric">
+        </div>
+        <div class="form-group">
+          <label for="add-judul">Judul Buku <span aria-hidden="true">*</span></label>
+          <input type="text" id="add-judul" name="judul_buku" required placeholder="Judul lengkap buku">
+        </div>
+        <div class="form-group">
+          <label for="add-kategori">Kategori <span aria-hidden="true">*</span></label>
+          <select id="add-kategori" name="id_kategori" required>
+            <option value="">— Pilih Kategori —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="add-penulis">Penulis <span aria-hidden="true">*</span></label>
+          <input type="text" id="add-penulis" name="nama_penulis" required placeholder="Nama penulis">
+        </div>
+        <div class="form-group">
+          <label for="add-penerbit">Penerbit <span aria-hidden="true">*</span></label>
+          <input type="text" id="add-penerbit" name="nama_penerbit" required placeholder="Nama penerbit">
+        </div>
+        <div class="form-group">
+          <label for="add-tahun">Tahun Terbit <span aria-hidden="true">*</span></label>
+          <input type="number" id="add-tahun" name="tahun_terbit" required placeholder="Contoh: 2023" min="1800" max="2100">
+        </div>
+        <div class="form-group">
+          <label for="add-halaman">Jumlah Halaman <span aria-hidden="true">*</span></label>
+          <input type="number" id="add-halaman" name="jumlah_halaman" required placeholder="Contoh: 320" min="1">
+        </div>
+        <div class="form-group">
+          <label for="add-sinopsis">Sinopsis</label>
+          <textarea id="add-sinopsis" name="sinopsis" rows="4" placeholder="Deskripsi singkat buku (opsional)"></textarea>
+        </div>
+
+        <div id="add-book-files">
+          <p class="muted">File buku opsional. Pilih sampul .jpg dan/atau isi buku .pdf.</p>
+          <div class="notice upload-policy">
+            File dengan format atau isi tidak valid akan ditolak. Empat percobaan upload tidak valid dalam sehari dapat membekukan akun.
+          </div>
+          <div class="form-group">
+            <label for="add-cover">Sampul Buku (.jpg)</label>
+            <div class="file-drop-zone" id="add-cover-drop-zone">
+              <input type="file" id="add-cover" name="cover" accept=".jpg,image/jpeg">
+              <span aria-hidden="true">🖼️</span>
+              <span class="file-label-name" id="add-cover-file-name">Klik untuk memilih sampul (.jpg)</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="add-pdf">Isi Buku (.pdf)</label>
+            <div class="file-drop-zone" id="add-pdf-drop-zone">
+              <input type="file" id="add-pdf" name="body" accept=".pdf,application/pdf">
+              <span aria-hidden="true">📄</span>
+              <span class="file-label-name" id="add-pdf-file-name">Klik untuk memilih isi buku (.pdf)</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="add-book-error" class="notice error" hidden></div>
+
+        <div class="modal-footer">
+          <button class="btn" type="button" id="cancel-add-modal">Batal</button>
+          <button class="btn primary" type="submit" id="submit-add-book">Simpan Buku</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================================== -->
+  <!-- Modal: Unggah File                                    -->
+  <!-- ===================================================== -->
+  <div class="modal-backdrop" id="modal-upload" role="dialog" aria-modal="true" aria-labelledby="modal-upload-title">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-upload-title">Unggah File Buku</h2>
+        <button class="modal-close" type="button" id="close-upload-modal" aria-label="Tutup modal">×</button>
+      </div>
+
+      <!-- Kotak pengumuman / peringatan format file -->
+      <div class="announcement-box" id="upload-announcement" role="alert" aria-live="assertive">
+        <!-- diisi oleh JS via textContent -->
+      </div>
+
+      <!-- Peringatan kebijakan beku akun -->
+      <div class="notice upload-policy">
+        Hanya berkas <strong>.pdf</strong> untuk isi buku dan <strong>.jpg</strong> untuk sampul. Empat percobaan format/isi yang salah dalam satu hari membekukan akun sampai tim IT membukanya secara manual.
+      </div>
+
+      <form id="form-upload" novalidate>
+        <input type="hidden" id="upload-isbn" name="isbn">
+
+        <!-- Cover -->
+        <div class="form-group">
+          <label for="upload-cover">Sampul Buku (.jpg)</label>
+          <div class="file-drop-zone" id="cover-drop-zone">
+            <input type="file" id="upload-cover" name="cover" accept=".jpg,image/jpeg">
+            <span aria-hidden="true">🖼️</span>
+            <span class="file-label-name" id="cover-file-name">Klik untuk memilih file sampul (.jpg)</span>
+            <span class="file-type-hint">Format yang diterima: .jpg</span>
+          </div>
+        </div>
+
+        <!-- PDF Body -->
+        <div class="form-group">
+          <label>Isi Buku (.pdf)</label>
+          <div class="file-drop-zone" id="pdf-drop-zone">
+            <input type="file" id="upload-pdf" name="body" accept=".pdf,application/pdf">
+            <span aria-hidden="true">📄</span>
+            <span class="file-label-name" id="pdf-file-name">Klik untuk memilih file PDF (.pdf)</span>
+            <span class="file-type-hint">Format yang diterima: .pdf</span>
+          </div>
+        </div>
+
+        <div id="upload-error" class="notice error" hidden></div>
+
+        <div class="modal-footer">
+          <button class="btn" type="button" id="cancel-upload-modal">Batal</button>
+          <button class="btn primary" type="submit" id="submit-upload">Unggah File</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modal-profile" role="dialog" aria-modal="true" aria-labelledby="modal-profile-title">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-profile-title">Profil Administrator</h2>
+        <button class="modal-close" type="button" id="close-profile-modal" aria-label="Tutup profil">×</button>
+      </div>
+      <dl class="profile-list">
+        <dt>Username</dt><dd id="profile-username"></dd>
+        <dt>Email</dt><dd id="profile-email"></dd>
+        <dt>Nomor telepon</dt><dd id="profile-phone"></dd>
+        <dt>Status akun</dt><dd id="profile-status"></dd>
+      </dl>
+      <div class="modal-footer">
+        <button class="btn" type="button" id="close-profile-button">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="{{ url_for('static', path='js/pages/admin.js') }}"></script>
+</body>
+</html>

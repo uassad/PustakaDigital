@@ -49,8 +49,10 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:8000"      # dipisah koma, tanpa wildcard
     allowed_hosts: str = "localhost,127.0.0.1"       # dipisah koma (anti Host-header attack)
 
-    # --- Batas body request -----------------------------------------------
+    # --- Batas body request & Upload Berkas -------------------------------
     max_json_body_kb: int = Field(64, ge=1, le=1024)
+    max_pdf_upload_mb: int = Field(100, ge=1, le=100, description="Batas maksimal ukuran upload PDF dalam MB")
+    max_cover_upload_mb: int = Field(5, ge=1, le=20, description="Batas maksimal ukuran upload sampul dalam MB")
 
     # --- OTP registrasi lokal (SMTP ditangkap Mailpit) --------------------
     otp_smtp_host: str = "127.0.0.1"
@@ -58,8 +60,18 @@ class Settings(BaseSettings):
     otp_from_email: str = "no-reply@localhost"
     otp_expiry_seconds: int = Field(300, ge=60, le=900)
 
-    # --- Berkas Buku (PDF) ------------------------------------------------
-    books_storage_path: str = "storage/books"
+    # --- Berkas Buku (PDF & Cover) ----------------------------------------
+    books_cover_path: str = "books/cover"
+    books_body_path: str = "books/body"
+
+    # --- Log aktivitas (MongoDB) -------------------------------------------
+    # Gagal terhubung ke MongoDB TIDAK mematikan aplikasi: log dilewati dan peringatan dicatat di konsol.
+    # Pakai 127.0.0.1 (bukan "localhost") agar di Windows tidak lambat karena mencoba IPv6 (::1) dulu.
+    activity_log_enabled: bool = True
+    mongodb_uri: str = "mongodb://127.0.0.1:27017"
+    mongodb_db: str = "pustaka_digital"
+    mongodb_log_collection: str = "activity_logs"
+    mongodb_timeout_ms: int = Field(2000, ge=200, le=30000)
 
     # ---------------------------------------------------------------------
     @field_validator("database_url")
@@ -67,6 +79,13 @@ class Settings(BaseSettings):
     def _db_url(cls, v: str) -> str:
         if not v.startswith("postgresql+asyncpg://"):
             raise ValueError("DATABASE_URL harus memakai driver async: postgresql+asyncpg://...")
+        return v
+
+    @field_validator("mongodb_uri")
+    @classmethod
+    def _mongo_uri(cls, v: str) -> str:
+        if not v.startswith(("mongodb://", "mongodb+srv://")):
+            raise ValueError("MONGODB_URI harus diawali mongodb:// atau mongodb+srv://")
         return v
 
     @field_validator("db_schema")
@@ -122,10 +141,34 @@ class Settings(BaseSettings):
         return self.max_json_body_kb * 1024
 
     @property
-    def books_storage_dir(self) -> Path:
-        p = (BASE_DIR / self.books_storage_path).resolve()
+    def max_pdf_upload_bytes(self) -> int:
+        return self.max_pdf_upload_mb * 1024 * 1024
+
+    @property
+    def max_cover_upload_bytes(self) -> int:
+        return self.max_cover_upload_mb * 1024 * 1024
+
+    @property
+    def max_upload_request_bytes(self) -> int:
+        # Menampung multipart overhead + pdf + cover
+        return (self.max_pdf_upload_mb + self.max_cover_upload_mb + 2) * 1024 * 1024
+
+    @property
+    def books_cover_dir(self) -> Path:
+        p = (BASE_DIR / self.books_cover_path).resolve()
         p.mkdir(parents=True, exist_ok=True)
         return p
+
+    @property
+    def books_body_dir(self) -> Path:
+        p = (BASE_DIR / self.books_body_path).resolve()
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def books_storage_dir(self) -> Path:
+        """Alias untuk direktori isi buku (PDF)."""
+        return self.books_body_dir
 
 
 @lru_cache

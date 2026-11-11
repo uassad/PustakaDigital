@@ -5,5 +5,14 @@ from app.models.kategori import KategoriBuku
 from app.models.pengguna import Pengguna
 from app.models.registration_challenge import RegistrationChallenge
 from app.models.role import Role
+from app.models.upload_failure_daily import UploadFailureDaily
 
-__all__ = ["Pengguna", "Role", "KategoriBuku", "Buku", "Favorit", "RegistrationChallenge"]
+__all__ = [
+    "Pengguna",
+    "Role",
+    "KategoriBuku",
+    "Buku",
+    "Favorit",
+    "RegistrationChallenge",
+    "UploadFailureDaily",
+]

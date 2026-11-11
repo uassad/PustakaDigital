@@ -12,3 +12,9 @@ __pycache__/
 # .gitignore
 # configuration
 # .yml
+.secrets/.env
+*.zip
+books/body/*
+!books/body/.gitkeep
+books/cover/*
+!books/cover/.gitkeep

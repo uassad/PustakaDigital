@@ -1,6 +1,6 @@
 """Entry point FastAPI.
 
-Jalankan (dari folder app_project):
+Jalankan (dari folder proyek yang berisi main.py):
     uvicorn main:app --reload                      # development
     uvicorn main:app --host 127.0.0.1 --port 8000 --no-server-header --proxy-headers   # produksi (di belakang reverse proxy TLS)
 """
@@ -15,7 +15,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app.routers import auth, books, pages
+from app.routers import auth, books, logs, pages
+from app.services import activity_log
 from configuration.database_session import engine
 from configuration.middleware import RequestSizeLimitMiddleware, SecurityHeadersMiddleware
 from configuration.settings import BASE_DIR, settings
@@ -26,7 +27,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    await activity_log.init_activity_log()      # MongoDB; gagal konek = peringatan saja, aplikasi tetap jalan
     yield
+    await activity_log.close_activity_log()
     await engine.dispose()
 
 
@@ -41,7 +44,11 @@ app = FastAPI(
 )
 
 # --- Middleware. Urutan: yang ditambahkan TERAKHIR berjalan PALING LUAR. -----------------------
-app.add_middleware(RequestSizeLimitMiddleware, max_json_bytes=settings.max_json_body_bytes)
+app.add_middleware(
+    RequestSizeLimitMiddleware,
+    max_json_bytes=settings.max_json_body_bytes,
+    max_upload_bytes=settings.max_upload_request_bytes,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,            # daftar eksplisit, TIDAK pernah "*"
@@ -66,7 +73,8 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
 
 
 @app.exception_handler(StarletteHTTPException)
-async def http_error_handler(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+async def http_error_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    activity_log.log_http_error(request, exc.status_code, exc.detail)   # 401/403/429 -> log keamanan
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=getattr(exc, "headers", None))
 
 
@@ -80,4 +88,5 @@ async def unhandled_error_handler(request: Request, exc: Exception) -> JSONRespo
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "statics")), name="static")   # hanya aset frontend
 app.include_router(auth.router)
 app.include_router(books.router)
+app.include_router(logs.router)
 app.include_router(pages.router)

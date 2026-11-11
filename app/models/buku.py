@@ -27,7 +27,14 @@ class Buku(AuditMixin, Base):
     nama_penerbit: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
     tahun_terbit: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
     jumlah_halaman: Mapped[int] = mapped_column(SmallInteger, nullable=False)
-    sinopsis: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
+    sinopsis: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    # Path penyimpanan lokal:
+    # book_cover: 'books/cover/<random_token>.<ext>'
+    # book_body: 'books/body/<random_token>.pdf'
+    # Nama berkas acak (unguessable) mematahkan serangan CSRF / direct file guessing.
+    book_cover: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    book_body: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     kategori: Mapped["KategoriBuku"] = relationship("KategoriBuku", lazy="joined")
     favorit: Mapped[List["Favorit"]] = relationship("Favorit", back_populates="buku", cascade="all, delete-orphan")

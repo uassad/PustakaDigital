@@ -26,6 +26,7 @@ def to_public(user: Pengguna) -> UserPublic:
         nomor_telepon=user.nomor_telepon,
         email_verified=user.email_verified,
         phone_verified=user.phone_verified,
+        account_status=user.account_status,
         role=user.role.role_name,
     )
 
@@ -48,6 +49,13 @@ async def authenticate(db: AsyncSession, data: UserLogin) -> Pengguna:
     ok = await verify_password_async(user.password if user else None, data.password)
     if not ok or user is None:
         raise _INVALID_CREDENTIALS
+
+    # Blokir akun yang dibekukan (account_status == 'beku')
+    if user.account_status == "beku":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Akun Anda telah dibekukan karena percobaan pengunggahan file yang tidak valid berulang kali. Silakan hubungi administrator IT.",
+        )
 
     if needs_rehash(user.password):                       # upgrade otomatis bila parameter Argon2 dinaikkan
         user.password = await hash_password_async(data.password)
