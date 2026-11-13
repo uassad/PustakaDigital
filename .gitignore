@@ -12,3 +12,6 @@ __pycache__/
 # .gitignore
 # configuration
 # .yml
+*.zip
+# books/body/*
+# books/cover/*

@@ -64,12 +64,28 @@ class Settings(BaseSettings):
     books_cover_path: str = "books/cover"
     books_body_path: str = "books/body"
 
+    # --- Log aktivitas (MongoDB) -------------------------------------------
+    # Gagal terhubung ke MongoDB TIDAK mematikan aplikasi: log dilewati dan peringatan dicatat di konsol.
+    # Pakai 127.0.0.1 (bukan "localhost") agar di Windows tidak lambat karena mencoba IPv6 (::1) dulu.
+    activity_log_enabled: bool = True
+    mongodb_uri: str = "mongodb://127.0.0.1:27017"
+    mongodb_db: str = "pustaka_digital"
+    mongodb_log_collection: str = "activity_logs"
+    mongodb_timeout_ms: int = Field(2000, ge=200, le=30000)
+
     # ---------------------------------------------------------------------
     @field_validator("database_url")
     @classmethod
     def _db_url(cls, v: str) -> str:
         if not v.startswith("postgresql+asyncpg://"):
             raise ValueError("DATABASE_URL harus memakai driver async: postgresql+asyncpg://...")
+        return v
+
+    @field_validator("mongodb_uri")
+    @classmethod
+    def _mongo_uri(cls, v: str) -> str:
+        if not v.startswith(("mongodb://", "mongodb+srv://")):
+            raise ValueError("MONGODB_URI harus diawali mongodb:// atau mongodb+srv://")
         return v
 
     @field_validator("db_schema")

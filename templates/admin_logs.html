@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Log Aktivitas · Pustaka Digital</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+</head>
+{# KEAMANAN: tidak ada <script> inline, onclick=, atau style= di seluruh template #}
+<body class="admin-page">
+
+  <div class="admin-shell">
+
+    <!-- ===== Navbar Admin ===== -->
+    <nav class="admin-navbar" aria-label="Navigasi administrator">
+      <a class="brand" href="/">Pustaka<span>Digital</span></a>
+      <span class="admin-page-title">Log Aktivitas</span>
+      <div class="admin-nav-actions">
+        <details class="admin-menu" id="admin-menu">
+          <summary class="btn btn-sm" aria-label="Buka menu administrator">Menu</summary>
+          <div class="admin-menu-panel">
+            <a class="admin-menu-link" href="/seAj2hB9sk/admin">Kelola Buku</a>
+            <a class="admin-menu-link" href="/seAj2hB9sk/admin/logs">Log Aktivitas</a>
+            <button class="admin-menu-link" type="button" id="profile-btn">Informasi Profil</button>
+            <button class="admin-menu-link" type="button" id="logout-btn">Keluar</button>
+          </div>
+        </details>
+      </div>
+    </nav>
+
+    <main class="admin-main" id="app">
+
+      <!-- Ringkasan 24 jam terakhir -->
+      <section class="stats-bar" aria-label="Ringkasan log 24 jam terakhir">
+        <div class="stat-card">
+          <div class="stat-number" id="sum-total">—</div>
+          <div class="stat-label">Semua aktivitas (24 jam)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="sum-auth">—</div>
+          <div class="stat-label">Autentikasi</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="sum-admin_book">—</div>
+          <div class="stat-label">Aksi admin (buku)</div>
+        </div>
+        <div class="stat-card ok">
+          <div class="stat-number" id="sum-reader">—</div>
+          <div class="stat-label">Aktivitas pembaca</div>
+        </div>
+        <div class="stat-card warn">
+          <div class="stat-number" id="sum-security">—</div>
+          <div class="stat-label">Kejadian keamanan</div>
+        </div>
+      </section>
+
+      <!-- Filter -->
+      <form class="log-filters" id="log-filters" novalidate>
+        <div>
+          <label for="f-category">Kategori</label>
+          <select id="f-category">
+            <option value="">Semua kategori</option>
+          </select>
+        </div>
+        <div>
+          <label for="f-action">Aksi</label>
+          <select id="f-action">
+            <option value="">Semua aksi</option>
+          </select>
+        </div>
+        <div>
+          <label for="f-status">Status</label>
+          <select id="f-status">
+            <option value="">Semua status</option>
+          </select>
+        </div>
+        <div>
+          <label for="f-actor">Pengguna</label>
+          <input type="search" id="f-actor" maxlength="50" placeholder="Username…" autocomplete="off">
+        </div>
+        <div>
+          <label for="f-from">Dari tanggal</label>
+          <input type="date" id="f-from">
+        </div>
+        <div>
+          <label for="f-to">Sampai tanggal</label>
+          <input type="date" id="f-to">
+        </div>
+        <div class="log-filter-actions">
+          <button class="btn primary" type="submit">Terapkan</button>
+          <button class="btn" type="button" id="f-reset">Reset</button>
+          <button class="btn btn-icon" type="button" id="f-refresh" aria-label="Muat ulang log" title="Muat ulang">↻</button>
+        </div>
+      </form>
+
+      <!-- Tabel Log -->
+      <div class="admin-table-wrap">
+        <table class="admin-table log-table" aria-label="Log aktivitas">
+          <thead>
+            <tr>
+              <th scope="col">Waktu</th>
+              <th scope="col">Kategori</th>
+              <th scope="col">Aksi</th>
+              <th scope="col">Status</th>
+              <th scope="col">Pengguna</th>
+              <th scope="col">Target</th>
+              <th scope="col">IP</th>
+              <th scope="col">Detail</th>
+            </tr>
+          </thead>
+          <tbody id="log-tbody">
+            <!-- diisi oleh JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <div id="log-state" aria-live="polite"></div>
+
+      <nav class="pagination" id="pagination" aria-label="Navigasi halaman" hidden>
+        <button class="btn btn-sm" type="button" id="prev-page-btn" aria-label="Halaman sebelumnya">← Sebelumnya</button>
+        <span class="page-info" id="page-info">Halaman 1</span>
+        <button class="btn btn-sm" type="button" id="next-page-btn" aria-label="Halaman berikutnya">Berikutnya →</button>
+      </nav>
+
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <div class="modal-backdrop" id="modal-profile" role="dialog" aria-modal="true" aria-labelledby="modal-profile-title">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-profile-title">Profil Administrator</h2>
+        <button class="modal-close" type="button" id="close-profile-modal" aria-label="Tutup profil">×</button>
+      </div>
+      <dl class="profile-list">
+        <dt>Username</dt><dd id="profile-username"></dd>
+        <dt>Email</dt><dd id="profile-email"></dd>
+        <dt>Nomor telepon</dt><dd id="profile-phone"></dd>
+        <dt>Status akun</dt><dd id="profile-status"></dd>
+      </dl>
+      <div class="modal-footer">
+        <button class="btn" type="button" id="close-profile-button">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="{{ url_for('static', path='js/pages/admin_logs.js') }}"></script>
+</body>
+</html>

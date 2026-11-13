@@ -52,6 +52,8 @@ class SecurityHeadersMiddleware:
                     h.setdefault("Content-Security-Policy", CSP)
                 if path.startswith("/api/"):
                     h.setdefault("Cache-Control", "no-store")   # jangan cache respons API / data pribadi
+                elif not path.startswith("/static/"):
+                    h.setdefault("Cache-Control", "no-store")   # halaman HTML (termasuk admin) jangan di-cache
                 if self.production:
                     h.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
             await send(message)

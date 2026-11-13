@@ -40,3 +40,21 @@ WHERE username = '<verified_admin_username>'
 
 The application role is intentionally not granted a general account-status
 management endpoint.
+
+## Log aktivitas (MongoDB)
+
+Aktivitas dicatat ke MongoDB (database `pustaka_digital`, koleksi `activity_logs`) dan dilihat administrator di
+`/seAj2hB9sk/admin/logs` (menu **Log Aktivitas**). Pengaturan opsional di `.secrets/.env`:
+
+```dotenv
+ACTIVITY_LOG_ENABLED=true
+MONGODB_URI=mongodb://127.0.0.1:27017
+MONGODB_DB=pustaka_digital
+MONGODB_LOG_COLLECTION=activity_logs
+```
+
+Kategori: `auth` (registrasi, login, logout, ubah profil, hapus akun), `admin_book` (tambah/ubah/hapus buku, unggah
+berkas), `reader` (cari, detail, baca PDF, favorit), `security` (rate limit, akses ditolak, upload tidak valid,
+akun dibekukan). Penulisan log berjalan di background dan gagal-aman: bila MongoDB mati, aplikasi tetap jalan dan
+hanya menampilkan peringatan di konsol. Password, token, dan kode OTP tidak pernah dicatat.
+

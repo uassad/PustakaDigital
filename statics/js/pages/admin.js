@@ -8,7 +8,9 @@
 
 import { api, ApiError, session } from "../api.js";
 import { el, clear, show, toast, debounce } from "../dom.js";
-import { logout } from "../auth.js";
+import { logout, reloadOnBackForward } from "../auth.js";
+
+reloadOnBackForward();
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let currentPage = 1;
@@ -202,7 +204,7 @@ function renderBookRow(book, index) {
   if (book.has_cover && book.book_cover) {
     const img = el("img", {
       class: "admin-cover-thumb",
-      src: `/api/books/${encodeURIComponent(book.isbn)}/cover`,
+            src: `/api/books/${encodeURIComponent(book.isbn)}/cover?v=${encodeURIComponent(book.book_cover || "")}`,
       alt: `Sampul ${book.judul_buku}`,
       loading: "lazy",
     });
@@ -448,7 +450,7 @@ async function handleAddBookSubmit(e) {
     id_kategori: parseInt(idKategori, 10),
     nama_penulis: penulis,
     nama_penerbit: penerbit,
-    tahun_terbit: parseInt(tahun, 10),
+    tahun_terbit: String(parseInt(tahun, 10)),
     jumlah_halaman: parseInt(halaman, 10),
   };
   payload.sinopsis = sinopsis;
@@ -617,13 +619,17 @@ async function handleDeleteBook(isbn, judul) {
   if (!confirmed) return;
 
   try {
-    await api(`/api/admin/books/${encodeURIComponent(isbn)}`, { method: "DELETE" });
+    const result = await api(`/api/admin/books/${encodeURIComponent(isbn)}`, { method: "DELETE" });
 
     // Hapus baris dari tabel
     const row = adminTbody.querySelector(`tr[data-isbn="${CSS.escape(isbn)}"]`);
     if (row) row.remove();
 
-    toast(`Buku "${judul}" berhasil dihapus.`);
+    if (result && result.files_failed && result.files_failed.length) {
+      toast(`Buku "${judul}" dihapus, tetapi ${result.files_failed.length} berkas gagal dihapus dari folder books. Tutup program yang membuka berkas itu lalu hapus manual.`, true);
+    } else {
+      toast(`Buku "${judul}" dan berkas PDF/sampulnya berhasil dihapus.`);
+    }
     await loadStats();
 
     // Reload jika tabel kosong setelah penghapusan

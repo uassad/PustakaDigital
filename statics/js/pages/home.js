@@ -1,5 +1,8 @@
 import { api, ApiError, session } from "../api.js";
-import { getCurrentUser, logout } from "../auth.js";
+import { getCurrentUser, logout, reloadOnBackForward } from "../auth.js";
+
+reloadOnBackForward();
+
 import { clear, debounce, el, show, toast } from "../dom.js";
 
 // State aplikasi di halaman beranda
@@ -352,7 +355,7 @@ function renderBookCard(book) {
     coverEl = el("div", { class: "book-cover-wrapper" },
       el("img", {
         class: "book-cover-img",
-        src: `/api/books/${encodeURIComponent(book.isbn)}/cover`,
+                src: `/api/books/${encodeURIComponent(book.isbn)}/cover?v=${encodeURIComponent(book.book_cover || "")}`,
         alt: `Sampul ${book.judul_buku}`,
         loading: "lazy",
       })

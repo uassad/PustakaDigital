@@ -27,6 +27,7 @@ from app.models.buku import Buku
 from app.models.favorit import Favorit
 from app.models.kategori import KategoriBuku
 from app.models.upload_failure_daily import UploadFailureDaily
+from app.services.book_files import remove_book_files
 from app.schemas.book import (
     BookListResponse,
     BookPublic,
@@ -488,18 +489,25 @@ async def get_admin_book_stats(db: AsyncSession) -> dict[str, int]:
     }
 
 
-async def delete_book(db: AsyncSession, isbn: str, deleted_by: uuid.UUID) -> None:
-    """Menghapus buku dan berkas fisiknya secara aman."""
-    buku, _ = await get_book_by_isbn(db, isbn)
+async def delete_book(db: AsyncSession, isbn: str, deleted_by: uuid.UUID) -> dict[str, list[str]]:
+    """Menghapus buku dari database, lalu berkas sampul (.jpg) dan isi (.pdf)-nya dari folder books/.
 
-    # Hapus berkas fisik secara aman
-    for path_func in [get_secure_body_path, get_secure_cover_path]:
-        try:
-            p = path_func(buku)
-            if p and p.is_file():
-                p.unlink(missing_ok=True)
-        except Exception:
-            pass  # Log but continue
+    Urutan: baris database dihapus & di-commit DULU. Bila database gagal, berkas tidak tersentuh.
+    Penghapusan berkas lewat book_files.remove_book_files (tanpa shell, whitelist nama, terkunci ke folder).
+    """
+    buku, _ = await get_book_by_isbn(db, isbn)        # ISBN sudah divalidasi 13 digit di sini
+    isbn_value, cover, body = buku.isbn, buku.book_cover, buku.book_body
 
     await db.delete(buku)
     await db.commit()
+
+    # Jangan hapus berkas yang masih dipakai buku lain.
+    still_used: set[str] = set()
+    for column, value in ((Buku.book_cover, cover), (Buku.book_body, body)):
+        if value:
+            count = (await db.execute(select(func.count()).select_from(Buku).where(column == value))).scalar_one()
+            if count:
+                still_used.add(value)
+
+    deleted, failed = remove_book_files(isbn_value, cover, body, skip=frozenset(still_used))
+    return {"files_deleted": deleted, "files_failed": failed}
