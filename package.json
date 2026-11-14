@@ -1,0 +1,33 @@
+{
+  "name": "sub",
+  "version": "1.0.0",
+  "description": "This flow verifies the selected contact during registration. Login remains password-only.\r It is a development simulation, not a way to send real email or SMS.",
+  "main": "build.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/uassad/private.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/uassad/private/issues"
+  },
+  "homepage": "https://github.com/uassad/private#readme",
+  "devDependencies": {
+    "fs-extra": "^11.4.1",
+    "glob": "^14.0.6",
+    "html-minifier-terser": "^7.2.0",
+    "javascript-obfuscator": "^5.10.1",
+    "postcss": "^8.5.33",
+    "postcss-obfuscator": "^1.6.1"
+  }
+}

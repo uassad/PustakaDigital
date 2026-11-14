@@ -4,9 +4,9 @@ __pycache__/
 .apps/
 *.exe
 *.pgerd
+.vscode/
 # .env
 # .secrets
-# .vscode
 # .ai
 # .docker
 # .gitignore
@@ -15,3 +15,4 @@ __pycache__/
 *.zip
 # books/body/*
 # books/cover/*
+node_modules/
