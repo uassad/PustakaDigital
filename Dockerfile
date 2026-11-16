@@ -16,7 +16,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source code
-COPY . .
+# COPY . .
+COPY ["1. dist_prod/", "./"]
 
 # Ensure upload and secret directories exist
 RUN mkdir -p books/cover books/body .secrets
@@ -25,4 +26,4 @@ RUN mkdir -p books/cover books/body .secrets
 EXPOSE 8000
 
 # Default command to run FastAPI backend with Uvicorn
-CMD ["uvicorn", "main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
