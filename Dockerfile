@@ -1,5 +1,12 @@
 FROM python:3.12-slim
 
+RUN addgroup -S nonroot \
+    && adduser -S nonroot -G nonroot
+
+USER nonroot
+
+ENTRYPOINT ["id"]
+
 # Prevent Python from writing bytecode and enable unbuffered logging
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

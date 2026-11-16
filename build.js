@@ -1,7 +1,7 @@
 const fs = require("fs-extra");
-const path = require("path");
+const path = require("node:path");
 const { glob } = require("glob");
-const { execSync } = require("child_process");
+const { execSync } = require("node:child_process");
 const postcss = require("postcss");
 const postcssObfuscator = require("postcss-obfuscator");
 const JavaScriptObfuscator = require("javascript-obfuscator");
@@ -36,60 +36,68 @@ async function build() {
   const cssFiles = await glob(`${tempDir}/statics/css/**/*.css`, {
     windowsPathsNoEscape: true,
   });
+  
+  await Promise.all(
+    cssFiles.map(async (cssFile) => {
+      const cssCode = await fs.readFile(cssFile, "utf8");
+      const relativePath = path.relative(tempDir, cssFile);
+      const outCssPath = path.join(outDir, relativePath);
 
-  for (const cssFile of cssFiles) {
-    const cssCode = await fs.readFile(cssFile, "utf8");
-    const relativePath = path.relative(tempDir, cssFile);
-    const outCssPath = path.join(outDir, relativePath);
+      const result = await postcss([
+        postcssObfuscator({
+          enable: true,
+          length: 6,
+          classMethod: "random",
+          ids: false,
+          srcPath: tempDir,
+          desPath: outDir,
+          extensions: [".html", ".js"],
+          jsonsPath: `${tempDir}/mapping.json`,
+        }),
+      ]).process(cssCode, { from: cssFile, to: outCssPath });
 
-    const result = await postcss([
-      postcssObfuscator({
-        enable: true,
-        length: 6,
-        classMethod: "random",
-        ids: false,
-        srcPath: tempDir,
-        desPath: outDir,
-        extensions: [".html", ".js"],
-        jsonsPath: `${tempDir}/mapping.json`,
-      }),
-    ]).process(cssCode, { from: cssFile, to: outCssPath });
-
-    await fs.outputFile(outCssPath, result.css);
-  }
+      await fs.outputFile(outCssPath, result.css);
+    })
+  );
 
   console.log("2. Meng-obfuscate semua file JavaScript...");
   const jsFiles = await glob(`${outDir}/statics/js/**/*.js`, {
     windowsPathsNoEscape: true,
   });
-  for (const jsFile of jsFiles) {
-    const jsCode = await fs.readFile(jsFile, "utf8");
-    const obfuscated = JavaScriptObfuscator.obfuscate(jsCode, {
-      compact: true,
-      controlFlowFlattening: true,
-      stringArray: true,
-      stringArrayEncoding: ["base64"],
-    });
-    await fs.writeFile(jsFile, obfuscated.getObfuscatedCode());
-  }
+
+  await Promise.all(
+    jsFiles.map(async (jsFile) => {
+      const jsCode = await fs.readFile(jsFile, "utf8");
+      const obfuscated = JavaScriptObfuscator.obfuscate(jsCode, {
+        compact: true,
+        controlFlowFlattening: true,
+        stringArray: true,
+        stringArrayEncoding: ["base64"],
+      });
+      await fs.writeFile(jsFile, obfuscated.getObfuscatedCode());
+    })
+  );
 
   console.log("3. Mengompresi file HTML di folder templates...");
   const htmlFiles = await glob(`${outDir}/templates/**/*.html`, {
     windowsPathsNoEscape: true,
   });
-  for (const htmlFile of htmlFiles) {
-    const htmlCode = await fs.readFile(htmlFile, "utf8");
-    const minified = await minify(htmlCode, {
-      collapseWhitespace: true,
-      removeComments: true,
-      ignoreCustomFragments: [
-        /\{\{[\s\S]*?\}\}/,
-        /\{%[\s\S]*?%\}/,
-        /\{#[\s\S]*?#\}/,
-      ],
-    });
-    await fs.writeFile(htmlFile, minified);
-  }
+
+  await Promise.all(
+    htmlFiles.map(async (htmlFile) => {
+      const htmlCode = await fs.readFile(htmlFile, "utf8");
+      const minified = await minify(htmlCode, {
+        collapseWhitespace: true,
+        removeComments: true,
+        ignoreCustomFragments: [
+          /\{\{[^{}]*\}\}/,
+          /\{%[\s\S]*?%\}/,
+          /\{#[\s\S]*?#\}/,
+        ],
+      });
+      await fs.writeFile(htmlFile, minified);
+    })
+  );
 
   console.log("4. Meng-obfuscate kode Python...");
   const pythonExe = fs.existsSync("./.venv/Scripts/python.exe")

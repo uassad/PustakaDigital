@@ -30,7 +30,7 @@ export class ApiError extends Error {
 }
 
 function describeError(status, body) {
-  const detail = body && body.detail;
+  const detail = body?.detail;
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
     return detail.map((d) => (d.field ? `${d.field}: ${d.msg}` : d.msg)).join("; ");
