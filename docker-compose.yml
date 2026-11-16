@@ -62,7 +62,7 @@ services:
       - app-network
 
   mongodb:
-    image: mongo:7.0
+    image: mongo:4.4
     container_name: uas-sad-mongodb
     restart: unless-stopped
     ports:
@@ -70,7 +70,7 @@ services:
     volumes:
       - mongo_data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
       interval: 5s
       timeout: 5s
       retries: 5

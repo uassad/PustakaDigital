@@ -25,4 +25,4 @@ RUN mkdir -p books/cover books/body .secrets
 EXPOSE 8000
 
 # Default command to run FastAPI backend with Uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
