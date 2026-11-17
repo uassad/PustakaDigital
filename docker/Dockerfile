@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN groupadd --system nonroot && useradd --system --gid nonroot nonroot
 
 # Install Python dependencies
-COPY requirements.txt .
+COPY .secrets/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source code with proper ownership
