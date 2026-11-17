@@ -1,3 +1,4 @@
+# KALI LINUX
 FROM python:3.12-slim
 
 # Prevent Python from writing bytecode and enable unbuffered logging
