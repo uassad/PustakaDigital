@@ -46,10 +46,9 @@
     <div class="filter-bar">
       <div class="filter-section">
         <span class="filter-label">Kategori:</span>
-        
-        <div id="category-chips" class="chip-group" role="group" aria-label="Filter Kategori">
+        <fieldset id="category-chips" class="chip-group" aria-label="Filter Kategori">
           <button class="chip active" data-category="" type="button">Semua Kategori</button>
-        </div>
+        </fieldset>
       </div>
       <div id="fav-filter-wrapper" class="fav-filter-wrapper" hidden>
         <button id="filter-favorites-btn" class="chip chip-gold" type="button">★ Koleksi Favorit Saya</button>
@@ -59,7 +58,7 @@
 
   <!-- Status / Info Hasil Pencarian -->
   <div class="results-header">
-    <div id="results-count" class="muted" role="status">Memuat katalog buku...</div>
+    <output id="results-count" class="muted">Memuat katalog buku...</output>
   </div>
 
   <!-- Grid Tempat Kartu Buku Ditampilkan -->
@@ -75,7 +74,7 @@
   </nav>
 </div>
 
-<div class="modal-backdrop" id="modal-profile" role="dialog" aria-modal="true" aria-labelledby="modal-profile-title">
+<dialog class="modal-backdrop" id="modal-profile" aria-modal="true" aria-labelledby="modal-profile-title">
   <div class="modal-box">
     <div class="modal-header">
       <h2 class="modal-title" id="modal-profile-title">Informasi Profil</h2>
@@ -101,9 +100,9 @@
       </div>
     </form>
   </div>
-</div>
+</dialog>
 
-<div class="modal-backdrop" id="modal-delete-account" role="dialog" aria-modal="true" aria-labelledby="modal-delete-title">
+<dialog class="modal-backdrop" id="modal-delete-account" aria-modal="true" aria-labelledby="modal-delete-title">
   <div class="modal-box">
     <div class="modal-header">
       <h2 class="modal-title" id="modal-delete-title">Hapus Akun</h2>
@@ -122,7 +121,7 @@
       </div>
     </form>
   </div>
-</div>
+</dialog>
 {% endblock %}
 
 {% block scripts %}
