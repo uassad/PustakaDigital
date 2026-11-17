@@ -2,10 +2,11 @@
 .venv/
 .vscode/
 node_modules/
-docker/
-.docker
-.yml
-Dockerfile
+temp_build/
+# docker/
+# *.yml
+# .dockerignore
+# Dockerfile
 
 # DOCUMENTATION
 __pycache__/
@@ -16,13 +17,21 @@ books/cover/*
 *.exe
 *.pgerd
 *.zip
-.gitignore
-build.js
-package.json
-package-lock.json
+*.pyc
+*.pyo
+*.pyd
+*.log
+# *.example
+.git
+# .gitignore
+# .dcignore
+# build.js
+# package.json
+# package-lock.json
 
 # SECRETS
-.agents/
-.secrets/
-configuration/
-.env
+# .agents/
+# .secrets/
+# configuration/
+# .env
+# audits/

@@ -1,0 +1,407 @@
+[
+  {
+    "coverage_id": ".secrets%2F.env%23JWT_SECRET_KEY::configuration%2Fsettings.py%23Settings::configuration::ATTACK-CLASSES.md%23Cryptography%20and%20secrets",
+    "canonical_refs": {
+      "surface": ".secrets/.env#JWT_SECRET_KEY",
+      "boundary": "configuration/settings.py#Settings",
+      "subsystem": "configuration",
+      "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets"
+    },
+    "surface": "Environment secret files",
+    "boundary": "Configuration repository isolation",
+    "subsystem": "Configuration",
+    "attack_class": "Cryptography and secrets",
+    "starting_paths": [
+      ".secrets/.env",
+      ".gitignore",
+      "configuration/settings.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "auditor-core",
+    "reviewed_paths": [
+      ".secrets/.env",
+      ".gitignore",
+      "configuration/settings.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "auditor-core",
+        "reviewed_paths": [
+          ".secrets/.env",
+          ".gitignore",
+          "configuration/settings.py"
+        ],
+        "invariant": "Sensitive credentials must not be tracked in git index",
+        "method": "source",
+        "result": "Found tracked .secrets/.env file containing JWT_SECRET_KEY and pepper",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "sec-secrets-env-git-tracked"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Frouters%2Fauth.py%23PATCH%20%2Fapi%2Fauth%2Fme::configuration%2Fauthorization.py%23require_roles::app%2Fauth::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "app/routers/auth.py#PATCH /api/auth/me",
+      "boundary": "configuration/authorization.py#require_roles",
+      "subsystem": "app/auth",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Profile update and deletion",
+    "boundary": "Role enforcement and password confirmation",
+    "subsystem": "Auth",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "app/routers/auth.py",
+      "configuration/authorization.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "auditor-core",
+    "reviewed_paths": [
+      "app/routers/auth.py",
+      "configuration/authorization.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "auditor-core",
+        "reviewed_paths": [
+          "app/routers/auth.py",
+          "configuration/authorization.py"
+        ],
+        "invariant": "Account modifications require current password verification",
+        "method": "source",
+        "result": "Password verified before changes and deletions are committed",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Frouters%2Fauth.py%23POST%20%2Fapi%2Fauth%2Flogin::configuration%2Fauthentication.py%23create_access_token::app%2Fauth::ATTACK-CLASSES.md%23Cryptography%20and%20secrets",
+    "canonical_refs": {
+      "surface": "app/routers/auth.py#POST /api/auth/login",
+      "boundary": "configuration/authentication.py#create_access_token",
+      "subsystem": "app/auth",
+      "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets"
+    },
+    "surface": "User login endpoint",
+    "boundary": "Argon2id password verification and JWT issuance",
+    "subsystem": "Auth",
+    "attack_class": "Cryptography and secrets",
+    "starting_paths": [
+      "app/routers/auth.py",
+      "app/services/auth_service.py",
+      "configuration/salt_and_pepper.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "auditor-core",
+    "reviewed_paths": [
+      "app/routers/auth.py",
+      "app/services/auth_service.py",
+      "configuration/salt_and_pepper.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "auditor-core",
+        "reviewed_paths": [
+          "app/routers/auth.py",
+          "app/services/auth_service.py",
+          "configuration/salt_and_pepper.py"
+        ],
+        "invariant": "Password hashing must resist brute force and enumeration",
+        "method": "source",
+        "result": "Argon2id with HMAC pepper and dummy timing hash properly configured",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Frouters%2Fauth.py%23POST%20%2Fapi%2Fauth%2Fregister::app%2Fservices%2Fregistration_otp.py%23start_registration::app%2Fauth::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "app/routers/auth.py#POST /api/auth/register",
+      "boundary": "app/services/registration_otp.py#start_registration",
+      "subsystem": "app/auth",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Registration endpoint",
+    "boundary": "Account registration gate",
+    "subsystem": "Auth",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "app/routers/auth.py",
+      "app/services/registration_otp.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "auditor-core",
+    "reviewed_paths": [
+      "app/routers/auth.py",
+      "app/services/registration_otp.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "auditor-core",
+        "reviewed_paths": [
+          "app/routers/auth.py",
+          "app/services/registration_otp.py"
+        ],
+        "invariant": "Registration service must support production operation",
+        "method": "source",
+        "result": "Endpoint unconditionally fails with 503 when ENVIRONMENT=production",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "sec-auth-registration-disabled-in-production"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Frouters%2Fbooks.py%23GET%20%2Fapi%2Fbooks%2F%7Bisbn%7D%2Fpdf::app%2Fservices%2Fbook_service.py%23resolve_secure_file_path::app%2Fbooks::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "app/routers/books.py#GET /api/books/{isbn}/pdf",
+      "boundary": "app/services/book_service.py#resolve_secure_file_path",
+      "subsystem": "app/books",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "Book PDF streaming endpoint",
+    "boundary": "Directory isolation and traversal check",
+    "subsystem": "Books",
+    "attack_class": "Resource and file handling",
+    "starting_paths": [
+      "app/routers/books.py",
+      "app/services/book_service.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "auditor-core",
+    "reviewed_paths": [
+      "app/routers/books.py",
+      "app/services/book_service.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "auditor-core",
+        "reviewed_paths": [
+          "app/routers/books.py",
+          "app/services/book_service.py"
+        ],
+        "invariant": "File retrieval must not resolve outside designated books directory",
+        "method": "source",
+        "result": "resolve_secure_file_path rejects absolute paths and path traversal components",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Frouters%2Fbooks.py%23GET%20%2Fapi%2Fbooks::app%2Fservices%2Fbook_service.py%23search_books::app%2Fbooks::ATTACK-CLASSES.md%23Injection",
+    "canonical_refs": {
+      "surface": "app/routers/books.py#GET /api/books",
+      "boundary": "app/services/book_service.py#search_books",
+      "subsystem": "app/books",
+      "attack_class": "ATTACK-CLASSES.md#Injection"
+    },
+    "surface": "Book catalog search",
+    "boundary": "SQL parameterized query construction",
+    "subsystem": "Books",
+    "attack_class": "Injection",
+    "starting_paths": [
+      "app/routers/books.py",
+      "app/services/book_service.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "auditor-core",
+    "reviewed_paths": [
+      "app/routers/books.py",
+      "app/services/book_service.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "auditor-core",
+        "reviewed_paths": [
+          "app/routers/books.py",
+          "app/services/book_service.py"
+        ],
+        "invariant": "Search queries must not allow SQL injection",
+        "method": "source",
+        "result": "SQLAlchemy typed expressions and wildcard escaping verified safe",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Frouters%2Fbooks.py%23POST%20%2Fapi%2Fbooks%2F%7Bisbn%7D%2Fupload-files::app%2Fservices%2Fbook_service.py%23save_book_cover::app%2Fbooks::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "app/routers/books.py#POST /api/books/{isbn}/upload-files",
+      "boundary": "app/services/book_service.py#save_book_cover",
+      "subsystem": "app/books",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "Admin file upload endpoint",
+    "boundary": "Path traversal containment and magic byte validation",
+    "subsystem": "Books",
+    "attack_class": "Resource and file handling",
+    "starting_paths": [
+      "app/routers/books.py",
+      "app/services/book_service.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "auditor-core",
+    "reviewed_paths": [
+      "app/routers/books.py",
+      "app/services/book_service.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "auditor-core",
+        "reviewed_paths": [
+          "app/routers/books.py",
+          "app/services/book_service.py"
+        ],
+        "invariant": "Uploaded files must be isolated from path traversal and extension spoofing",
+        "method": "source",
+        "result": "Magic byte validation and unguessable UUID filenames enforced",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Frouters%2Flogs.py%23GET%20%2Fapi%2Fadmin%2Flogs::app%2Fservices%2Factivity_log.py%23build_query::app%2Flogs::ATTACK-CLASSES.md%23Injection",
+    "canonical_refs": {
+      "surface": "app/routers/logs.py#GET /api/admin/logs",
+      "boundary": "app/services/activity_log.py#build_query",
+      "subsystem": "app/logs",
+      "attack_class": "ATTACK-CLASSES.md#Injection"
+    },
+    "surface": "Admin activity log search",
+    "boundary": "MongoDB regex escaping and query sanitization",
+    "subsystem": "Logs",
+    "attack_class": "Injection",
+    "starting_paths": [
+      "app/routers/logs.py",
+      "app/services/activity_log.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "auditor-core",
+    "reviewed_paths": [
+      "app/routers/logs.py",
+      "app/services/activity_log.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "auditor-core",
+        "reviewed_paths": [
+          "app/routers/logs.py",
+          "app/services/activity_log.py"
+        ],
+        "invariant": "NoSQL queries must escape user regexes and avoid injection",
+        "method": "source",
+        "result": "re.escape applied to actor queries and strict regex validation on filters",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "configuration%2Frate_limiter.py%23enforce::configuration%2Frate_limiter.py%23client_ip::configuration::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "configuration/rate_limiter.py#enforce",
+      "boundary": "configuration/rate_limiter.py#client_ip",
+      "subsystem": "configuration",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Rate limiting middleware",
+    "boundary": "IP extraction and sliding window tracking",
+    "subsystem": "Configuration",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "configuration/rate_limiter.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "auditor-core",
+    "reviewed_paths": [
+      "configuration/rate_limiter.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "auditor-core",
+        "reviewed_paths": [
+          "configuration/rate_limiter.py"
+        ],
+        "invariant": "Rate limiter must accurately isolate client traffic",
+        "method": "source",
+        "result": "In-memory limiter tracks socket IP which may collapse behind reverse proxies",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "sec-ratelimit-inmemory-proxy-ip"
+    ],
+    "unresolved": []
+  }
+]

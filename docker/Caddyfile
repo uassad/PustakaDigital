@@ -1,0 +1,15 @@
+/* deploying a live server with a domain name
+yourdomain.com {
+    reverse_proxy backend:8000
+} */
+
+/* testing HTTPS locally without a domain name */
+localhost {
+    tls internal
+    reverse_proxy backend:8000
+}
+
+mail.localhost {
+    tls internal
+    reverse_proxy mailpit:8025
+}

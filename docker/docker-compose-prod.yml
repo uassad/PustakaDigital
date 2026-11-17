@@ -1,0 +1,117 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: uas-sad-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # Enables HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: uas-sad-backend
+    restart: unless-stopped
+    expose:
+      - "8000" # Only exposed internally to Caddy
+    environment:
+      ENVIRONMENT: "production"
+      DATABASE_URL: "postgresql+asyncpg://postgres:postgres_password@postgres:5432/uas_sad_website_buku"
+      DB_SCHEMA: "uas_sad"
+      JWT_SECRET_KEY: "CHANiLj-uogPpf2MYpgCd-CQzKk9kDqS3J6LURSvPekgg9R3ZMQThiF-FyHZ1COgtnSRlIxsFubtbYAF5XHWor8tyEQ"
+      PASSWORD_PEPPER: "hD22R8u2jRd8RTh9z0Bgczy1Gb4CITPiR9UvGtOYiRDIKTR7k1r5GnNqcwmhj8UNbzn3-iZNbFlPtNJgic4kDw"
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      # ====================================
+      # VERCEL DOMAIN
+      # CORS_ORIGINS: "https://yourdomain.com"
+      # ALLOWED_HOSTS: "yourdomain.com,backend"
+      CORS_ORIGINS: "http://localhost:8000,http://127.0.0.1:8000"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,backend,0.0.0.0"
+      # ====================================
+      ACTIVITY_LOG_ENABLED: "true"
+      MONGODB_URI: "mongodb://mongodb:27017"
+      MONGODB_DB: "pustaka_digital"
+      MONGODB_LOG_COLLECTION: "activity_logs"
+      MONGODB_TIMEOUT_MS: 2000
+      OTP_SMTP_HOST: "mailpit"
+      OTP_SMTP_PORT: 1025
+      # ====================================
+      # VERCEL DOMAIN
+      # OTP_FROM_EMAIL: "no-reply@yourdomain.com"
+      OTP_FROM_EMAIL: "no-reply@localhost"
+      # ====================================
+      OTP_EXPIRY_SECONDS: 300
+      BOOKS_COVER_PATH: "books/cover"
+      BOOKS_BODY_PATH: "books/body"
+    volumes:
+      - ./books:/app/books
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    networks:
+      - app-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: uas-sad-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_DB: uas_sad_website_buku
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+      - ./app/schemas:/app_schemas:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d uas_sad_website_buku"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  mongodb:
+    image: mongo:4.4
+    container_name: uas-sad-mongodb
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: uas-sad-mailpit
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongo_data:
+  caddy_data:
+  caddy_config:

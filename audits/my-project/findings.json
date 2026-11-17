@@ -1,0 +1,213 @@
+[
+  {
+    "verdict": "needs_validation",
+    "fingerprint": "sec-auth-registration-disabled-in-production",
+    "title": "User Self-Registration Permanently Disabled in Production Environment",
+    "description": "Both registration initiation and OTP verification routes in app/routers/auth.py contain an explicit check settings.is_production that raises HTTP 503. The codebase lacks a production-ready SMTP or SMS gateway integration, rendering user registration non-functional whenever ENVIRONMENT=production.",
+    "claimed_root_cause": "The OTP delivery service only implements a local Mailpit simulator and intentionally fails closed in production mode.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "app/routers/auth.py",
+        "line": 54,
+        "scope": "register",
+        "description": "Endpoint checks settings.is_production."
+      },
+      {
+        "kind": "sink",
+        "file": "app/routers/auth.py",
+        "line": 55,
+        "scope": "register",
+        "description": "Raises HTTPException 503 Service Unavailable."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "app/routers/auth.py",
+        "line": 54,
+        "description": "if settings.is_production: raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, ...)"
+      },
+      {
+        "file": "app/routers/auth.py",
+        "line": 90,
+        "description": "if settings.is_production: raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, ...)"
+      }
+    ],
+    "blockers": [
+      "Production deployment requirements for external transactional email/SMS delivery providers (e.g., Mailgun, SendGrid) are unobserved external decisions."
+    ],
+    "validation_plan": {
+      "local": "Set ENVIRONMENT=production and call POST /api/auth/register to verify 503 response.",
+      "deployment": "Clarify with system architects whether production registration is intended to remain closed or if a production email service must be provisioned."
+    }
+  },
+  {
+    "verdict": "rejected",
+    "fingerprint": "sec-book-search-sqli-speculation",
+    "title": "Speculative SQL Injection in Book Catalog Search",
+    "description": "Investigated whether the search parameter 'q' in GET /api/books could lead to SQL injection vulnerabilities when querying books.",
+    "claimed_root_cause": "Suspected unescaped string concatenation in book search query construction.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "app/routers/books.py",
+        "line": 45,
+        "scope": "list_and_search_books",
+        "description": "Receives user search query 'q'."
+      },
+      {
+        "kind": "sink",
+        "file": "app/services/book_service.py",
+        "line": 228,
+        "scope": "search_books",
+        "description": "Constructs SQLAlchemy Core filter condition."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "app/services/book_service.py",
+        "line": 47,
+        "description": "escape_like() function properly escapes SQL wildcard characters."
+      },
+      {
+        "file": "app/services/book_service.py",
+        "line": 228,
+        "description": "Query uses SQLAlchemy parameterized expressions (or_(*search_terms)) with bind parameters."
+      }
+    ],
+    "reason": "SQLAlchemy expressions with bind parameters are used exclusively. All search tokens are parameterized and LIKE wildcards are escaped, preventing SQL injection."
+  },
+  {
+    "verdict": "needs_validation",
+    "fingerprint": "sec-ratelimit-inmemory-proxy-ip",
+    "title": "In-Memory Rate Limiting Relies on Direct Socket IP Behind Reverse Proxies",
+    "description": "The rate limiting mechanism in configuration/rate_limiter.py stores hit counts in a process-local memory dictionary keyed by request.client.host. In production deployments behind reverse proxies, if proxy headers and trusted proxy CIDRs are not strictly configured, all traffic shares the reverse proxy IP, risking shared-bucket denial of service or rate limit bypass across multiple application instances.",
+    "claimed_root_cause": "client_ip reads request.client.host directly without a distributed store or verified proxy forwarding configuration.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "configuration/rate_limiter.py",
+        "line": 62,
+        "scope": "client_ip",
+        "description": "Function inspects request.client.host directly."
+      },
+      {
+        "kind": "propagation",
+        "file": "configuration/rate_limiter.py",
+        "line": 72,
+        "scope": "rate_limit._dep",
+        "description": "Constructs per-IP rate key using socket host."
+      },
+      {
+        "kind": "sink",
+        "file": "configuration/rate_limiter.py",
+        "line": 23,
+        "scope": "SlidingWindowLimiter.hit",
+        "description": "Updates local process memory dictionary without cross-instance synchronization."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "configuration/rate_limiter.py",
+        "line": 65,
+        "description": "return request.client.host if request.client else 'unknown'"
+      },
+      {
+        "file": "configuration/rate_limiter.py",
+        "line": 19,
+        "description": "self._hits: dict[str, deque[float]] = {}"
+      }
+    ],
+    "blockers": [
+      "The production reverse proxy infrastructure, header rewriting rules, and multi-process worker topology are not defined within the repository."
+    ],
+    "validation_plan": {
+      "local": "Launch multiple Uvicorn workers and verify whether rate limits operate per-process rather than globally.",
+      "deployment": "Audit the production reverse proxy configuration (e.g. Nginx, Cloudflare) to ensure proxy-headers and trusted forwarder IP lists are enforced."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "sec-secrets-env-git-tracked",
+    "title": "Production JWT Secret and Password Pepper Committed in Git-Tracked .env",
+    "description": "The application configuration reads secrets from .secrets/.env. While .secrets/ was subsequently added to .gitignore, the .secrets/.env file remains actively tracked in the Git repository index, exposing JWT signing keys, password pepper, and database credentials to anyone with read access to the repository.",
+    "root_cause": ".secrets/.env was staged and committed into the repository index before the .gitignore exclusion was added, keeping it permanently tracked.",
+    "intended_behavior": "Cryptographic secrets such as JWT_SECRET_KEY, PASSWORD_PEPPER, and database connection URIs must never be committed to source control and must be provided exclusively through runtime environment variables or a secret manager.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": ".gitignore",
+        "line": 26,
+        "scope": "repository",
+        "description": ".gitignore declares .secrets/ but does not remove already-tracked files from the git index."
+      },
+      {
+        "kind": "propagation",
+        "file": "configuration/settings.py",
+        "line": 22,
+        "scope": "Settings.model_config",
+        "description": "Pydantic SettingsConfigDict reads environment values directly from BASE_DIR / '.secrets' / '.env'."
+      },
+      {
+        "kind": "sink",
+        "file": ".secrets/.env",
+        "line": 12,
+        "scope": "configuration",
+        "description": "Hardcoded production-length JWT_SECRET_KEY and PASSWORD_PEPPER are committed in plaintext."
+      }
+    ],
+    "evidence": [
+      {
+        "file": ".secrets/.env",
+        "line": 12,
+        "description": "Raw secret key assignment JWT_SECRET_KEY=CHANiLj-uogPpf2MYpgCd-CQzKk9kDqS3J6LURSvPekgg9R3ZMQThiF-FyHZ1COgtnSRlIxsFubtbYAF5XHWor8tyEQ"
+      },
+      {
+        "file": ".secrets/.env",
+        "line": 13,
+        "description": "Raw password pepper assignment PASSWORD_PEPPER=hD22R8u2jRd8RTh9z0Bgczy1Gb4CITPiR9UvGtOYiRDIKTR7k1r5GnNqcwmhj8UNbzn3-iZNbFlPtNJgic4kDw"
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "environmental_dependency",
+        "description": "Attacker possesses read access to the repository files or commit history."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "An unprivileged developer, auditor, or external actor with repository read permissions.",
+      "payloads": [
+        "git ls-files .secrets"
+      ],
+      "instructions": [
+        "Clone or inspect the repository worktree and check tracked files under .secrets/",
+        "Extract JWT_SECRET_KEY and PASSWORD_PEPPER from .secrets/.env."
+      ],
+      "observed_result": "The active application cryptographic secret key and pepper are extracted in plaintext without requiring server breach."
+    },
+    "remediation": {
+      "strategy": "Untrack .secrets/.env from git cache, rotate all exposed secrets, and load secrets via system environment variables.",
+      "code_changes": [
+        {
+          "file_name": ".gitignore",
+          "fixed_code": "# Ensure secrets are untracked via git rm --cached .secrets/.env and .secrets/requirements.txt"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Any user or collaborator with read access to the repository directly views the tracked secret file."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "Leaked JWT secret permits forged authentication tokens; leaked pepper degrades offline hash defense if the database is leaked."
+      },
+      "overall_severity": "high"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmed via git index check and direct repository inspection."
+    }
+  }
+]

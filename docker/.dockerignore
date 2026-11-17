@@ -10,5 +10,6 @@ node_modules
 1. dist_prod
 temp_build
 .vscode
-.ai
+.agents
+.secrets
 *.log
