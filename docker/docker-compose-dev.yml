@@ -3,6 +3,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      target: development
     container_name: uas-sad-backend
     restart: unless-stopped
     ports:
@@ -28,6 +29,11 @@ services:
       BOOKS_COVER_PATH: "books/cover"
       BOOKS_BODY_PATH: "books/body"
     volumes:
+      - ../app:/app/app
+      - ../configuration:/app/configuration
+      - ../statics:/app/statics
+      - ../templates:/app/templates
+      - ../main.py:/app/main.py
       - ../books:/app/books
     depends_on:
       postgres:

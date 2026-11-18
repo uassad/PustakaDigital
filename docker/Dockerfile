@@ -1,5 +1,9 @@
-# KALI LINUX
-FROM python:3.12-slim
+# syntax=docker/dockerfile:1
+
+# ==============================================================================
+# Base stage: Python environment, dependencies & non-root user
+# ==============================================================================
+FROM python:3.12-slim AS base
 
 # Prevent Python from writing bytecode and enable unbuffered logging
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -12,25 +16,47 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root system user and group (Debian syntax)
+# Create non-root system user and group (Debian syntax)
 RUN groupadd --system nonroot && useradd --system --gid nonroot nonroot
 
-# Install Python dependencies
-COPY .secrets/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies (supports requirements.txt from root or .secrets/)
+COPY requirements.txt* .secrets/requirements.txt* ./
+RUN if [ -f requirements.txt ]; then \
+        pip install --no-cache-dir -r requirements.txt; \
+    else \
+        pip install --no-cache-dir -r .secrets/requirements.txt; \
+    fi
 
-# Copy application source code with proper ownership
-COPY --chown=nonroot:nonroot ["1. dist_prod/", "./"]
-
-# Ensure directories exist and are owned by nonroot
-RUN mkdir -p books/cover books/body .secrets \
+# Ensure storage and secret directories exist with nonroot ownership
+RUN mkdir -p /app/books/cover /app/books/body /app/.secrets \
     && chown -R nonroot:nonroot /app
 
-# Switch to non-root user before running the app
-USER nonroot
-
-# Expose backend service port
 EXPOSE 8000
 
-# Run Uvicorn behind a reverse proxy
+# ==============================================================================
+# Development stage: Uses raw source code directly (supports hot-reload)
+# ==============================================================================
+FROM base AS development
+
+# Copy application source code
+COPY --chown=nonroot:nonroot app/ ./app/
+COPY --chown=nonroot:nonroot configuration/ ./configuration/
+COPY --chown=nonroot:nonroot statics/ ./statics/
+COPY --chown=nonroot:nonroot templates/ ./templates/
+COPY --chown=nonroot:nonroot main.py ./main.py
+
+USER nonroot
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# ==============================================================================
+# Production stage: Uses protected/obfuscated dist build (1. dist_prod/)
+# ==============================================================================
+FROM base AS production
+
+# Copy obfuscated and minified production build
+COPY --chown=nonroot:nonroot ["1. dist_prod/", "./"]
+
+USER nonroot
+
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
