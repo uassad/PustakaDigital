@@ -1,0 +1,64 @@
+FROM node:22-bookworm-slim AS node-tools
+
+FROM python:3.12-slim-bookworm AS production-build
+COPY --from=node-tools /usr/local/ /usr/local/
+WORKDIR /src
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY build.js ./
+COPY app/ ./app/
+COPY books/ ./books/
+COPY configuration/ ./configuration/
+COPY statics/ ./statics/
+COPY templates/ ./templates/
+COPY main.py ./main.py
+COPY docker-compose.otp.yml ./
+COPY docker/build-requirements.txt ./build-requirements.txt
+RUN python3 -m venv /opt/pyarmor-venv \
+    && /opt/pyarmor-venv/bin/pip install --no-cache-dir --upgrade pip \
+    && /opt/pyarmor-venv/bin/pip install --no-cache-dir -r build-requirements.txt
+ENV PYTHON="/opt/pyarmor-venv/bin/python"
+RUN node build.js
+
+FROM ubuntu:24.04 AS base
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    python3 \
+    python3-pip \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --system nonroot && useradd --system --gid nonroot --home-dir /nonexistent nonroot
+
+COPY docker/requirements.txt ./requirements.txt
+RUN python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
+    && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+ENV PATH="/opt/venv/bin:${PATH}"
+
+RUN mkdir -p /app/books/cover /app/books/body \
+    && chown -R nonroot:nonroot /app
+
+EXPOSE 8000
+
+FROM base AS development
+COPY --chown=nonroot:nonroot app/ ./app/
+COPY --chown=nonroot:nonroot configuration/ ./configuration/
+COPY --chown=nonroot:nonroot statics/ ./statics/
+COPY --chown=nonroot:nonroot templates/ ./templates/
+COPY --chown=nonroot:nonroot main.py ./main.py
+USER nonroot
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+FROM base AS production
+COPY --from=production-build --chown=nonroot:nonroot ["/src/1. dist_prod/", "./"]
+USER nonroot
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]

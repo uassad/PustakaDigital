@@ -19,25 +19,21 @@ services:
   backend:
     build:
       context: ..
-      dockerfile: docker/Dockerfile
+      # FIle path dockerfile harus disesuaikan Dockerfile sesuai os-nya
+      dockerfile: docker/Dockerfile.ubuntu
       target: production
     container_name: uas-sad-backend
     restart: unless-stopped
     expose:
       - "8000" # Only exposed internally to Caddy
+    env_file:
+      - ../.secrets/.env.docker
     environment:
       ENVIRONMENT: "production"
-      DATABASE_URL: "postgresql+asyncpg://postgres:postgres_password@postgres:5432/uas_sad_website_buku"
-      DB_SCHEMA: "uas_sad"
-      JWT_SECRET_KEY: "CHANiLj-uogPpf2MYpgCd-CQzKk9kDqS3J6LURSvPekgg9R3ZMQThiF-FyHZ1COgtnSRlIxsFubtbYAF5XHWor8tyEQ"
-      PASSWORD_PEPPER: "hD22R8u2jRd8RTh9z0Bgczy1Gb4CITPiR9UvGtOYiRDIKTR7k1r5GnNqcwmhj8UNbzn3-iZNbFlPtNJgic4kDw"
-      ACCESS_TOKEN_EXPIRE_MINUTES: 30
       # ====================================
       # VERCEL DOMAIN
       # CORS_ORIGINS: "https://yourdomain.com"
       # ALLOWED_HOSTS: "yourdomain.com,backend"
-      CORS_ORIGINS: "http://localhost:8000,http://127.0.0.1:8000"
-      ALLOWED_HOSTS: "localhost,127.0.0.1,backend,0.0.0.0"
       # ====================================
       ACTIVITY_LOG_ENABLED: "true"
       MONGODB_URI: "mongodb://mongodb:27017"
@@ -70,16 +66,14 @@ services:
     image: postgres:16-alpine
     container_name: uas-sad-postgres
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres_password
-      POSTGRES_DB: uas_sad_website_buku
+    env_file:
+      - ../.secrets/.postgres.env
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres-init:/docker-entrypoint-initdb.d:ro
       - ../app/schemas:/app_schemas:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d uas_sad_website_buku"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5

@@ -7,6 +7,92 @@ The application project is in the `sub` folder of this workspace. If your termin
 is at the workspace root, run `Set-Location sub` first. The commands below assume
 your current directory is the project folder containing `main.py`.
 
+## Run the development environment with Docker Compose
+
+1. Make sure Docker Desktop is running and `.secrets/.env` contains
+   `DATABASE_URL`, `JWT_SECRET_KEY`, and `PASSWORD_PEPPER`. The database URL
+   must include the PostgreSQL username, password, and database name.
+2. From the project root, generate Docker-specific runtime environment files:
+
+   ```powershell
+   python docker/prepare-env.py
+   ```
+
+   This keeps the local `.secrets/.env` unchanged, rewrites the database host
+   to the Compose service name `postgres`, and passes PostgreSQL credentials
+   only to the database container. The generated files are ignored by Git and
+   excluded from the Docker build context. Run this command again after
+   changing `.secrets/.env`.
+3. Check and start the development stack:
+
+   ```powershell
+   docker compose -f docker/docker-compose-dev.yml config --quiet
+   docker compose -f docker/docker-compose-dev.yml up --build -d
+   ```
+
+4. Check status and logs:
+
+   ```powershell
+   docker compose -f docker/docker-compose-dev.yml ps
+   docker compose -f docker/docker-compose-dev.yml logs -f backend
+   ```
+
+5. Open <http://127.0.0.1:8000>. Mailpit is available at
+   <http://127.0.0.1:8025>. Apply the database schema as described below if
+   this is a new database.
+6. Stop the stack when finished:
+
+   ```powershell
+   docker compose -f docker/docker-compose-dev.yml down
+   ```
+
+The database volume persists when the stack is stopped. Do not add `-v` to
+`down` unless you intend to delete the database data.
+
+## Run the production environment with Docker Compose
+
+1. Set production values in `.secrets/.env`. Use a strong
+   `JWT_SECRET_KEY` and `PASSWORD_PEPPER`, set `CORS_ORIGINS` to HTTPS origins,
+   set `ALLOWED_HOSTS` to the actual host names, and configure
+   `DATABASE_SSLMODE` to `require` or a verified TLS mode supported by the
+   database.
+2. Generate the runtime environment files:
+
+   ```bash
+   python docker/prepare-env.py
+   ```
+
+3. Configure `docker/Caddyfile` for the deployment domain, then validate
+   Compose:
+
+   ```bash
+   docker compose -f docker/docker-compose-prod.yml config --quiet
+   ```
+
+4. Build and start the production stack:
+
+   ```bash
+   docker compose -f docker/docker-compose-prod.yml up --build -d
+   docker compose -f docker/docker-compose-prod.yml ps
+   docker compose -f docker/docker-compose-prod.yml logs -f backend
+   ```
+
+   The production Dockerfile runs `build.js` in a Linux builder stage with
+   Node.js 22 and Python 3.12, then copies the generated bundle into the
+   Ubuntu/Debian runtime image. No host-generated `1. dist_prod` bundle is
+   required.
+5. Open the HTTPS domain configured in Caddy. Stop the production stack with:
+
+   ```bash
+   docker compose -f docker/docker-compose-prod.yml down
+   ```
+
+**Production database prerequisite:** the bundled PostgreSQL service currently
+does not enable TLS, while the application requires a TLS database connection
+in production. Configure TLS for that service or use a TLS-enabled database
+before starting the production backend. The database must also be initialized
+with the schema described below.
+
 ## Start the local inbox
 
 From the project root, run:
@@ -69,11 +155,12 @@ short-lived, HttpOnly cookie scoped to the admin dashboard. The dashboard checks
 that cookie and the current database role on every page request; admin APIs also
 enforce the role independently. Readers cannot open the dashboard or upload files.
 
-## Stop the services
+## Stop the local inbox
 
-To stop the docker compose:
+From the project root, run:
+
 ```powershell
-LISTEN_IP=0.0.0.0 docker compose -f docker-compose.otp.yml down
+docker compose -f docker-compose.otp.yml down
 ```
 
 To stop uvicorn:

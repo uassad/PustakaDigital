@@ -1,5 +1,27 @@
 # syntax=docker/dockerfile:1
 
+FROM node:22-bookworm-slim AS node-tools
+
+FROM python:3.12-slim-bookworm AS production-build
+COPY --from=node-tools /usr/local/ /usr/local/
+WORKDIR /src
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY build.js ./
+COPY app/ ./app/
+COPY books/ ./books/
+COPY configuration/ ./configuration/
+COPY statics/ ./statics/
+COPY templates/ ./templates/
+COPY main.py ./main.py
+COPY docker-compose.otp.yml ./
+COPY docker/build-requirements.txt ./build-requirements.txt
+RUN python3 -m venv /opt/pyarmor-venv \
+    && /opt/pyarmor-venv/bin/pip install --no-cache-dir --upgrade pip \
+    && /opt/pyarmor-venv/bin/pip install --no-cache-dir -r build-requirements.txt
+ENV PYTHON="/opt/pyarmor-venv/bin/python"
+RUN node build.js
+
 # ==============================================================================
 # Base stage: Python environment, dependencies & non-root user
 # ==============================================================================
@@ -19,16 +41,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create non-root system user and group (Debian syntax)
 RUN groupadd --system nonroot && useradd --system --gid nonroot nonroot
 
-# Install Python dependencies (supports requirements.txt from root or .secrets/)
-COPY requirements.txt* .secrets/requirements.txt* ./
-RUN if [ -f requirements.txt ]; then \
-        pip install --no-cache-dir -r requirements.txt; \
-    else \
-        pip install --no-cache-dir -r .secrets/requirements.txt; \
-    fi
+# Install Python dependencies
+COPY docker/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Ensure storage and secret directories exist with nonroot ownership
-RUN mkdir -p /app/books/cover /app/books/body /app/.secrets \
+# Ensure storage directories exist with nonroot ownership
+RUN mkdir -p /app/books/cover /app/books/body \
     && chown -R nonroot:nonroot /app
 
 EXPOSE 8000
@@ -55,7 +73,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 FROM base AS production
 
 # Copy obfuscated and minified production build
-COPY --chown=nonroot:nonroot ["1. dist_prod/", "./"]
+COPY --from=production-build --chown=nonroot:nonroot ["/src/1. dist_prod/", "./"]
 
 USER nonroot
 

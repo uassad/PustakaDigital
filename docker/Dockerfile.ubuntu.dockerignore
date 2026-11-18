@@ -1,0 +1,32 @@
+# Dependency and development artifacts
+.venv/
+**/.venv/
+node_modules/
+**/node_modules/
+temp_build/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+.agents/
+audits/
+tests/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# Git metadata
+.git/
+.gitignore
+
+# Uploaded files
+books/body/*
+!books/body/.gitkeep
+books/cover/*
+!books/cover/.gitkeep
+
+# Secrets and environment files
+.secrets/
+**/.secrets/
+.env
+**/.env
