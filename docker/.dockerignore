@@ -1,37 +1,30 @@
-# ENVIRONMENT
+# Dependencies & Virtual Environments
 .venv/
 .vscode/
 node_modules/
 temp_build/
-# docker/
-# *.yml
-# .dockerignore
-# Dockerfile
 
-# DOCUMENTATION
+# Cache & Build artifacts
 __pycache__/
 .pytest_cache/
-.apps/
-books/body/*
-books/cover/*
-*.exe
-*.pgerd
-*.zip
+.agents/
+audits/
+tests/
 *.pyc
 *.pyo
 *.pyd
 *.log
-# *.example
-.git
-# .gitignore
-# .dcignore
-# build.js
-# package.json
-# package-lock.json
 
-# SECRETS
-# .agents/
-# .secrets/
-# configuration/
-# .env
-# audits/
+# Git
+.git/
+.gitignore
+
+# Uploaded Files (preserve directory structure via .gitkeep)
+books/body/*
+!books/body/.gitkeep
+books/cover/*
+!books/cover/.gitkeep
+
+# Secrets (hanya izinkan requirements.txt jika diambil dari .secrets)
+.secrets/*
+!.secrets/requirements.txt
