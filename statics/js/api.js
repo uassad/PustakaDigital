@@ -7,17 +7,18 @@
 // - Hanya path same-origin "/api/..." yang boleh dipanggil; credentials: "omit" (tanpa cookie).
 // - Pesan error dari server ditampilkan sebagai teks biasa.
 
-const TOKEN_KEY = "uas_sad_token";
+// Nama slot penyimpanan sesi pengguna di sessionStorage (bukan secret / kunci kriptografis)
+const SESSION_STORAGE_NAME = "uas_sad_session";
 
 export const session = {
   get token() {
-    try { return sessionStorage.getItem(TOKEN_KEY); } catch { return null; }
+    try { return sessionStorage.getItem(SESSION_STORAGE_NAME); } catch { return null; }
   },
   set(token) {
-    try { sessionStorage.setItem(TOKEN_KEY, token); } catch { /* storage diblokir: sesi hanya di memori halaman */ }
+    try { sessionStorage.setItem(SESSION_STORAGE_NAME, token); } catch { /* storage diblokir: sesi hanya di memori halaman */ }
   },
   clear() {
-    try { sessionStorage.removeItem(TOKEN_KEY); } catch { /* abaikan */ }
+    try { sessionStorage.removeItem(SESSION_STORAGE_NAME); } catch { /* abaikan */ }
   },
 };
 
@@ -30,7 +31,7 @@ export class ApiError extends Error {
 }
 
 function describeError(status, body) {
-  const detail = body && body.detail;
+  const detail = body?.detail;
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
     return detail.map((d) => (d.field ? `${d.field}: ${d.msg}` : d.msg)).join("; ");

@@ -15,7 +15,10 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app.routers import auth, books, logs, pages
+from app.routers import pages
+from app.routers import auth
+from app.routers import books
+from app.routers import logs
 from app.services import activity_log
 from configuration.database_session import engine
 from configuration.middleware import RequestSizeLimitMiddleware, SecurityHeadersMiddleware

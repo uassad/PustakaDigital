@@ -5,7 +5,7 @@ INSERT INTO uas_sad.kategori_buku (kategori, created_by)
 VALUES ('Politik', '00000000-0000-0000-0000-000000000000')
 ON CONFLICT (kategori) DO NOTHING;
 
--- 2. Insert data buku Asta Cita Prabowo-Gibran tanpa cover dan body
+-- 2. Insert data buku Asta Cita Prabowo-Gibran beserta cover dan body
 INSERT INTO uas_sad.buku (
     isbn,
     id_kategori,
@@ -28,11 +28,14 @@ SELECT
     '2024',
     175,
     'Visi, Misi, dan Program Aksi Prabowo-Gibran.',
-    NULL, -- book_cover dikosongkan
-    '/books/asta_cita.pdf',
+    'books/cover/78b7ff5d9e6a447c8d957ac998d9fa64_091e7d3420a7e8f2bdd0f002eea53ce7.jpg',
+    'books/body/6d02aa0818304eb58b0138d1af90ff56_c9a64f14d72796a6be6ca7f87fe9d098.pdf',
     '00000000-0000-0000-0000-000000000000'
 FROM uas_sad.kategori_buku
-WHERE kategori = 'Politik';
+WHERE kategori = 'Politik'
+ON CONFLICT (isbn) DO UPDATE SET
+    book_cover = EXCLUDED.book_cover,
+    book_body = EXCLUDED.book_body;
 
 COMMIT;
 

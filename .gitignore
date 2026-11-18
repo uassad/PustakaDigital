@@ -1,17 +1,38 @@
+# ENVIRONMENT
+.venv/
+.vscode/
+node_modules/
+temp_build/
+# /1. dist_prod/
+# docker/
+# *.yml
+# .dockerignore
+# Dockerfile
+
+# DOCUMENTATION
 __pycache__/
 .pytest_cache/
-.venv/
 .apps/
+books/body/*
+books/cover/*
 *.exe
 *.pgerd
-# .env
-# .secrets
-# .vscode
-# .ai
-# .docker
-# .gitignore
-# configuration
-# .yml
 *.zip
-# books/body/*
-# books/cover/*
+*.pyc
+*.pyo
+*.pyd
+*.log
+# *.example
+.git
+# .gitignore
+# .dcignore
+# build.js
+# package.json
+# package-lock.json
+
+# SECRETS
+# .agents/
+# .secrets/
+# configuration/
+# .env
+# audits/
