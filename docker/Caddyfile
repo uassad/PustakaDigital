@@ -1,9 +1,9 @@
-/* deploying a live server with a domain name
-yourdomain.com {
-    reverse_proxy backend:8000
-} */
+# For a public deployment, replace the localhost site with your real domain:
+# yourdomain.com {
+#     reverse_proxy backend:8000
+# }
 
-/* testing HTTPS locally without a domain name */
+# Local HTTPS testing with Caddy's internal CA.
 localhost {
     tls internal
     reverse_proxy backend:8000
