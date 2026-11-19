@@ -31,11 +31,11 @@ books/cover/*
 # package-lock.json
 
 # SECRETS
-.secrets/.env
-.secrets/.env.docker
-.secrets/.postgres.env
-# .agents/
 # .secrets/
+# .agents/
 # configuration/
-# .env
 # audits/
+# .secrets/.env
+# .secrets/.env.docker
+# .secrets/.postgres.env
+# .env
