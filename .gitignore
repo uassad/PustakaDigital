@@ -1,7 +1,7 @@
 # ENVIRONMENT
-.venv/
+# .venv/
 .vscode/
-node_modules/
+# node_modules/
 temp_build/
 # /1. dist_prod/
 # docker/
