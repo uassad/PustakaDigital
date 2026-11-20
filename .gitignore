@@ -13,8 +13,7 @@ temp_build/
 __pycache__/
 .pytest_cache/
 .apps/
-books/body/*
-books/cover/*
+# books/*
 *.exe
 *.pgerd
 *.zip
