@@ -1,169 +1,171 @@
-# Local registration OTP simulation
+# Pustaka Digital - run the project on another device
 
-This flow verifies the selected contact during registration. Login remains password-only.
-It is a development simulation, not a way to send real email or SMS.
+Follow these steps to run the development version on a new computer. Docker
+starts the web app, PostgreSQL, MongoDB, and a local email inbox together.
 
-The application project is in the `sub` folder of this workspace. If your terminal
-is at the workspace root, run `Set-Location sub` first. The commands below assume
-your current directory is the project folder containing `main.py`.
+## 1. Install the prerequisites
 
-## Run the development environment with Docker Compose
+- [Git](https://git-scm.com/downloads) to get the project source.
+- [Python 3](https://www.python.org/downloads/) to run the environment setup
+  helper.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) on Windows
+  or macOS. It includes Docker Compose. On Linux, install
+  [Docker Engine](https://docs.docker.com/engine/install/) and the
+  [Compose plugin](https://docs.docker.com/compose/install/linux/).
 
-1. Make sure Docker Desktop is running and `.secrets/.env` contains
-   `DATABASE_URL`, `JWT_SECRET_KEY`, and `PASSWORD_PEPPER`. The database URL
-   must include the PostgreSQL username, password, and database name.
-2. From the project root, generate Docker-specific runtime environment files:
+Start Docker Desktop (or the Docker Engine service) before continuing. You do
+not need to install the app's Python or Node.js packages on your computer;
+Docker installs the app dependencies when it builds the image.
+On macOS or Linux, use `python3` instead of `python` in the commands below if
+that is the Python 3 command on your system.
 
-   ```powershell
-   python docker/prepare-env.py
-   ```
+## 2. Get the project
 
-   This keeps the local `.secrets/.env` unchanged, rewrites the database host
-   to the Compose service name `postgres`, and passes PostgreSQL credentials
-   only to the database container. The generated files are ignored by Git and
-   excluded from the Docker build context. Run this command again after
-   changing `.secrets/.env`.
-3. Check and start the development stack:
+This repository is private, so sign in to an account with access before cloning:
 
-   ```powershell
-   docker compose -f docker/docker-compose-dev.yml config --quiet
-   docker compose -f docker/docker-compose-dev.yml up --build -d
-   ```
-
-4. Check status and logs:
-
-   ```powershell
-   docker compose -f docker/docker-compose-dev.yml ps
-   docker compose -f docker/docker-compose-dev.yml logs -f backend
-   ```
-
-5. Open <http://127.0.0.1:8000>. Mailpit is available at
-   <http://127.0.0.1:8025>. Apply the database schema as described below if
-   this is a new database.
-6. Stop the stack when finished:
-
-   ```powershell
-   docker compose -f docker/docker-compose-dev.yml down
-   ```
-
-The database volume persists when the stack is stopped. Do not add `-v` to
-`down` unless you intend to delete the database data.
-
-## Run the production environment with Docker Compose
-
-1. Set production values in `.secrets/.env`. Use a strong
-   `JWT_SECRET_KEY` and `PASSWORD_PEPPER`, set `CORS_ORIGINS` to HTTPS origins,
-   set `ALLOWED_HOSTS` to the actual host names, and configure
-   `DATABASE_SSLMODE` to `require` or a verified TLS mode supported by the
-   database.
-2. Generate the runtime environment files:
-
-   ```bash
-   python docker/prepare-env.py
-   ```
-
-3. Configure `docker/Caddyfile` for the deployment domain, then validate
-   Compose:
-
-   ```bash
-   docker compose -f docker/docker-compose-prod.yml config --quiet
-   ```
-
-4. Build and start the production stack:
-
-   ```bash
-   docker compose -f docker/docker-compose-prod.yml up --build -d
-   docker compose -f docker/docker-compose-prod.yml ps
-   docker compose -f docker/docker-compose-prod.yml logs -f backend
-   ```
-
-   The production Dockerfile runs `build.js` in a Linux builder stage with
-   Node.js 22 and Python 3.12, then copies the generated bundle into the
-   Ubuntu/Debian runtime image. No host-generated `1. dist_prod` bundle is
-   required.
-5. Open the HTTPS domain configured in Caddy. Stop the production stack with:
-
-   ```bash
-   docker compose -f docker/docker-compose-prod.yml down
-   ```
-
-**Production database prerequisite:** the bundled PostgreSQL service currently
-does not enable TLS, while the application requires a TLS database connection
-in production. Configure TLS for that service or use a TLS-enabled database
-before starting the production backend. The database must also be initialized
-with the schema described below.
-
-## Start the local inbox
-
-From the project root, run:
-
-```powershell
-docker compose -f docker-compose.otp.yml up -d
+```shell
+git clone https://github.com/uassad/private.git
+cd private
 ```
 
-Mailpit catches all outgoing messages locally:
+Run the remaining commands from the project folder containing `main.py`.
 
-- Inbox UI: <http://127.0.0.1:8025>
-- SMTP: `127.0.0.1:1025`
+## 3. Create local development secrets
 
-Add these optional settings to `.secrets/.env` if you need different values:
+Create `.secrets/.env` in the project folder. This file is local and must not be
+committed. Generate three random values with Python; run the command once for
+the database password and twice for the application secrets:
+
+```shell
+python -c "import secrets; print(secrets.token_hex(24))"
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+Add the generated values to `.secrets/.env`:
 
 ```dotenv
-OTP_SMTP_HOST=127.0.0.1
-OTP_SMTP_PORT=1025
-OTP_FROM_EMAIL=no-reply@localhost
-OTP_EXPIRY_SECONDS=300
+ENVIRONMENT=development
+DATABASE_URL=postgresql+asyncpg://postgres:<database-password>@localhost:5432/uas_sad_website_buku
+DB_SCHEMA=uas_sad
+JWT_SECRET_KEY=<first-application-secret>
+PASSWORD_PEPPER=<second-application-secret>
+CORS_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
+ALLOWED_HOSTS=localhost,127.0.0.1
 ```
 
-## Apply the database schema
+Replace each placeholder with its generated value. Keep the database password
+from `token_hex` as-is; it is safe to use in the database URL. The two
+application secrets must each be at least 32 characters.
 
-For a new database, run `app/schemas/table.sql` and then
-`app/schemas/02_runtime_grants.sql` as the schema migrator.
+Generate Docker's runtime environment files from this local configuration:
 
-For an existing database, run `app/schemas/03_registration_otp_migration.sql`
-as `uas_sad_migrator`. It adds contact-verification flags and the pending-registration
-challenge table. The schema migrator must own these objects.
-
-Run `app/schemas/06_account_management_migration.sql` as `uas_sad_migrator` on an
-existing database to enable reader profile updates and account deletion. Account
-deletion cascades to that reader's favorites and upload-failure counters. Readers
-can update their username and phone number after confirming their current password;
-email remains read-only because changing it requires a contact-verification flow.
-
-## Run and try it
-
-Start the application from the project root:
-
-```powershell
-python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
+```shell
+python docker/prepare-env.py
 ```
 
-Open <http://127.0.0.1:8000/register>, choose email or phone, and submit the
-form. Both message types appear in Mailpit. Phone delivery is represented by a
-message addressed to a synthetic `sms-...@sms.local` recipient; it never reaches
-a mobile network. Enter the six-digit code from the inbox to finish registration.
+This sets the database hostname to the Compose service name and creates the
+PostgreSQL container settings. Re-run it if you change `DATABASE_URL`.
 
-Codes expire after five minutes by default, allow five verification attempts,
-and are stored only as keyed hashes. Pending registrations store an Argon2id
-password hash. OTP simulation endpoints are disabled when `ENVIRONMENT=production`.
+## 4. Build and start the Docker project
 
-## Administrator dashboard
-
-Administrator and reader pages use separate templates and JavaScript files.
-After an administrator signs in, the server verifies the role before issuing a
-short-lived, HttpOnly cookie scoped to the admin dashboard. The dashboard checks
-that cookie and the current database role on every page request; admin APIs also
-enforce the role independently. Readers cannot open the dashboard or upload files.
-
-## Stop the local inbox
-
-From the project root, run:
-
-```powershell
-docker compose -f docker-compose.otp.yml down
+```shell
+docker compose -f docker/docker-compose-dev.yml config --quiet
+docker compose -f docker/docker-compose-dev.yml up --build -d
 ```
 
-To stop uvicorn:
-```powershell
-deactivate
+The first build may take a few minutes. Compose installs the Python
+dependencies, starts the databases and Mailpit, and initializes the database
+schema on its first start.
+
+Check that the services are running:
+
+```shell
+docker compose -f docker/docker-compose-dev.yml ps
+```
+
+For database inspection commands, see
+[PostgreSQL commands](POSTGRESQL_COMMANDS.md) and
+[MongoDB commands](MONGODB_COMMANDS.md).
+
+## 5. Open the app
+
+- [Pustaka Digital](http://127.0.0.1:8000/)
+- [Register](http://127.0.0.1:8000/register)
+- [Interactive API docs](http://127.0.0.1:8000/docs)
+- [Local email inbox (Mailpit)](http://127.0.0.1:8025/)
+
+Registration verification messages appear in Mailpit; this development setup
+does not send real email or SMS.
+
+To open the app from another device on the same network, use the computer
+running Docker's LAN IP, for example `http://192.168.1.20:8000`. Add that IP to
+`ALLOWED_HOSTS` in `.secrets/.env`, allow port 8000 through the host firewall if
+needed, and run `python docker/prepare-env.py` again before restarting the app.
+Do not expose this development setup directly to the public internet.
+
+## 6. Stop or troubleshoot
+
+Stop the containers without deleting the database:
+
+```shell
+docker compose -f docker/docker-compose-dev.yml down
+```
+
+To inspect application logs:
+
+```shell
+docker compose -f docker/docker-compose-dev.yml logs -f backend
+```
+
+The database is stored in a Docker volume and remains available after stopping
+the stack. Avoid `docker compose down -v` unless you intend to delete that data.
+
+## Registration and account roles
+
+Registration verifies the selected email address or phone number; login remains
+password-only. Verification codes expire after five minutes and allow up to five
+attempts. Messages are captured by Mailpit: phone verification uses a synthetic
+email recipient and never sends an SMS to a mobile network. OTP simulation
+endpoints are disabled in production.
+
+Administrator pages and APIs verify the account role. Reader accounts cannot
+open the administrator dashboard or upload books.
+
+## Existing databases
+
+The Compose database initialization scripts run only when PostgreSQL creates a
+new data volume. If you reuse an existing database or volume, check that its
+schema is current before starting the app; in particular, the registration OTP
+and account-management migrations are
+[`03_registration_otp_migration.sql`](app/schemas/03_registration_otp_migration.sql)
+and
+[`06_account_management_migration.sql`](app/schemas/06_account_management_migration.sql).
+Apply any required migrations as `uas_sad_migrator`.
+
+## Production deployment
+
+Production uses a separate Compose file. Before starting it, configure
+[`docker/Caddyfile`](docker/Caddyfile) for the deployment domain and set
+production values in `.secrets/.env`: use strong secrets, HTTPS-only
+`CORS_ORIGINS`, the real `ALLOWED_HOSTS`, and `DATABASE_SSLMODE=require` (or a
+verified TLS mode).
+
+**The bundled PostgreSQL service does not enable TLS.** The app requires a TLS
+database connection in production, so configure TLS for PostgreSQL or use a
+TLS-enabled database before starting the production backend.
+
+```shell
+python docker/prepare-env.py
+docker compose -f docker/docker-compose-prod.yml config --quiet
+docker compose -f docker/docker-compose-prod.yml up --build -d
+docker compose -f docker/docker-compose-prod.yml ps
+docker compose -f docker/docker-compose-prod.yml logs -f backend
+```
+
+The production image builds its bundle with Node.js 22 and Python 3.12; no
+host-generated `1. dist_prod` directory is required. Stop it with:
+
+```shell
+docker compose -f docker/docker-compose-prod.yml down
 ```
