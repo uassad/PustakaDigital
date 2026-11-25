@@ -1,7 +1,7 @@
 # ENVIRONMENT
-# .venv/
+.venv/
 .vscode/
-# node_modules/
+node_modules/
 temp_build/
 # /1. dist_prod/
 # docker/
@@ -13,7 +13,7 @@ temp_build/
 __pycache__/
 .pytest_cache/
 .apps/
-# books/*
+books/*
 *.exe
 *.pgerd
 *.zip
@@ -21,20 +21,20 @@ __pycache__/
 *.pyo
 *.pyd
 *.log
-# *.example
+*.example
 .git
-# .gitignore
-# .dcignore
-# build.js
-# package.json
-# package-lock.json
+.gitignore
+.dcignore
+build.js
+package.json
+package-lock.json
 
 # SECRETS
-# .secrets/
-# .agents/
-# configuration/
-# audits/
-# .secrets/.env
-# .secrets/.env.docker
-# .secrets/.postgres.env
-# .env
+.secrets/
+.agents/
+configuration/
+audits/
+.secrets/.env
+.secrets/.env.docker
+.secrets/.postgres.env
+.env
